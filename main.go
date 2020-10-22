@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/google/subcommands"
-	"github.com/keyneston/cfapply/cmds/list"
+	"github.com/keyneston/cfapply/cmds/status"
 	"github.com/keyneston/cfapply/config"
 )
 
@@ -18,7 +18,7 @@ func registerSubcommands(stacks config.StackSet) {
 	subcommands.Register(subcommands.CommandsCommand(), "")
 
 	// custom
-	subcommands.Register(&list.ListStacks{stacks}, "")
+	subcommands.Register(&status.StatusStacks{stacks}, "")
 }
 
 func main() {

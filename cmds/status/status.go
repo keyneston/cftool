@@ -1,4 +1,4 @@
-package list
+package status
 
 import (
 	"context"
@@ -15,23 +15,23 @@ import (
 	"github.com/lensesio/tableprinter"
 )
 
-type ListStacks struct {
+type StatusStacks struct {
 	StackSet config.StackSet
 }
 
-func (*ListStacks) Name() string     { return "status" }
-func (*ListStacks) Synopsis() string { return "List the stacks and their status" }
-func (*ListStacks) Usage() string {
+func (*StatusStacks) Name() string     { return "status" }
+func (*StatusStacks) Synopsis() string { return "Lists the stacks and their status" }
+func (*StatusStacks) Usage() string {
 	return `status:
 	Lists the stacks and their status
 `
 }
 
-func (r *ListStacks) SetFlags(f *flag.FlagSet) {
+func (r *StatusStacks) SetFlags(f *flag.FlagSet) {
 }
 
-func (r *ListStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	entries := []ListEntry{}
+func (r *StatusStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+	entries := []StatusEntry{}
 
 	for _, s := range r.StackSet {
 		live, err := s.GetLive()
@@ -60,7 +60,7 @@ func (r *ListStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 			return subcommands.ExitFailure
 		}
 
-		entry := ListEntry{
+		entry := StatusEntry{
 			Region:              region,
 			OurName:             s.Name,
 			Name:                *cur.StackName,
@@ -79,7 +79,7 @@ func (r *ListStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 	return subcommands.ExitSuccess
 }
 
-type ListEntry struct {
+type StatusEntry struct {
 	Region              string `header:"aws region"`
 	Name                string `header:"stackname"`
 	OurName             string `header:"internal name"`
