@@ -28,11 +28,45 @@ type StackConfig struct {
 	ARN    string                 `yaml:"arn"`
 	File   string                 `yaml:"file"`
 	Params map[string]interface{} `yaml:"params"`
+
+	client    *cf.CloudFormation
+	parsedARN arn.ARN
+	stackName string
 }
 
-func AWSClient() (*cf.CloudFormation, error) {
+func (s *StackConfig) GetClient() (*cf.CloudFormation, error) {
+	if s.client != nil {
+		return s.client, nil
+	}
+
+	stackARN, err := arn.Parse(s.ARN)
+	if err != nil {
+		return nil, fmt.Errorf("Error parsing ARN: %q", err)
+	}
+	s.parsedARN = stackARN
+
+	splitStr := strings.SplitN(stackARN.Resource, "/", 4)
+	if len(splitStr) != 3 {
+		return nil, fmt.Errorf("ARN resources doesn't match expected: %q", err)
+	}
+	s.stackName = splitStr[1]
+
+	client, err := AWSClient(stackARN.Region)
+	if err != nil {
+		return nil, err
+	}
+
+	s.client = client
+	return s.client, nil
+}
+
+func AWSClient(region string) (*cf.CloudFormation, error) {
+	if region == "" {
+		region = "us-east-1"
+	}
+
 	sess := session.Must(session.NewSession())
-	config := aws.NewConfig() // TODO: fix this
+	config := aws.NewConfig().WithRegion(region) // TODO: fix this
 
 	srv := cf.New(sess, config)
 	return srv, nil
@@ -82,24 +116,35 @@ func LoadStacks(root string) (map[string]*StackConfig, error) {
 	return stacks, nil
 }
 
-func (s *StackConfig) GetLive(client *cf.CloudFormation) (*cf.DescribeStacksOutput, error) {
-	stackARN, err := arn.Parse(s.ARN)
+func (s *StackConfig) GetTemplate() (string, error) {
+	client, err := s.GetClient()
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing ARN: %q", err)
+		return "", err
 	}
 
-	// FIXME: This is not thread safe
-	// log.Printf("Setting region: %v => %v", *client.Client.Config.Region, stackARN.Region)
-	client.Client.Config.WithRegion(stackARN.Region)
-	// log.Printf("Set region: %v", *client.Client.Config.Region)
+	template, err := client.GetTemplate(&cf.GetTemplateInput{
+		StackName:     &s.stackName,
+		TemplateStage: aws.String("Original"),
+	})
+	if err != nil {
+		return "", fmt.Errorf("GetTemplate: %v", err)
+	}
 
-	splitStr := strings.SplitN(stackARN.Resource, "/", 4)
-	if len(splitStr) != 3 {
-		return nil, fmt.Errorf("ARN resources doesn't match expected: %q", err)
+	if template.TemplateBody != nil {
+		return *template.TemplateBody, nil
+	} else {
+		return "", fmt.Errorf("no template found")
+	}
+}
+
+func (s *StackConfig) GetLive() (*cf.DescribeStacksOutput, error) {
+	client, err := s.GetClient()
+	if err != nil {
+		return nil, err
 	}
 
 	input := &cf.DescribeStacksInput{
-		StackName: &splitStr[1],
+		StackName: &s.stackName,
 	}
 
 	out, err := client.DescribeStacks(input)

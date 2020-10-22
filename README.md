@@ -6,12 +6,23 @@
 cloudformation. The idea is that you can declare your stacks in a series of
 yaml state files. Then you can use `cftool` to apply changes.
 
+## Commands
+
+* `cftool status`
+
+Gets the status of the managed stacks.
+
+```
+  AWS REGION   STACKNAME   INTERNAL NAME   CLOUDFORMATION DRIFT   TEMPLATE DRIFT
+ ------------ ----------- --------------- ---------------------- ----------------
+  us-east-1    chat-c1     us_east:c1      NOT_CHECKED            No
+```
+
 ## Theoretical Commands
 
 * `cftool sync`
 	Looks through the cloud formation stacks you have and syncs them into
 	local yaml files.
-
 
 ## Local Config
 
@@ -24,10 +35,11 @@ yaml state files. Then you can use `cftool` to apply changes.
 * individual stacks:
 
 ```yaml
-# file: us-east-c1.yml
-name: us-east-c1
-file: ../../cloudformation/shard-chat.yml
-region: us-east-1
-params:
-  foo: bar
+# file: examples/chat/us-east-c1.yml
+---
+name: "us_east:c1"
+region: "us-east-1"
+arn: "arn:aws:cloudformation:us-east-1:185583345998:stack/chat-c1/9a2046e0-35da-11e9-900e-0e0ed2de56d2"
+file: "../../GetStream/stream-puppet/cloudformation/v2/shard-chat.yml"
+
 ```
