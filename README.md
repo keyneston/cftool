@@ -13,9 +13,11 @@ yaml state files. Then you can use `cftool` to apply changes.
 Gets the status of the managed stacks.
 
 ```
-  AWS REGION   STACKNAME   INTERNAL NAME   CLOUDFORMATION DRIFT   TEMPLATE DRIFT
- ------------ ----------- --------------- ---------------------- ----------------
-  us-east-1    chat-c1     us_east:c1      NOT_CHECKED            No
+   AWS REGION       STACKNAME               INTERNAL NAME   CLOUDFORMATION DRIFT   TEMPLATE DRIFT
+ ---------------- ----------------------- --------------- ---------------------- ----------------
+  eu-west-1        dublin-region-chat-c1   dublin:c1       NOT_CHECKED            Yes
+  ap-southeast-2   sydney-region-chat-c1   sydney:c1       NOT_CHECKED            No
+  us-east-1        chat-c1                 us_east:c1      NOT_CHECKED            No
 ```
 
 ## Theoretical Commands
