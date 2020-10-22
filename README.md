@@ -26,6 +26,13 @@ Gets the status of the managed stacks.
 	Looks through the cloud formation stacks you have and syncs them into
 	local yaml files.
 
+* `cftool diff-template`
+	Grabs the live template, and gives a diff against the local version.
+
+* `cftool diff <name>`
+	Uploads the new local template and informs you what would change if the
+	new one is uploaded.
+
 ## Local Config
 
 * `config.yaml`

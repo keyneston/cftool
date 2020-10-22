@@ -9,6 +9,7 @@ import (
 	"github.com/google/subcommands"
 	"github.com/keyneston/cfapply/cmds/configcmd"
 	"github.com/keyneston/cfapply/cmds/status"
+	"github.com/keyneston/cfapply/cmds/sync"
 	"github.com/keyneston/cfapply/config"
 )
 
@@ -19,7 +20,7 @@ func registerSubcommands(general *config.GeneralConfig, stacks config.StackSet) 
 	subcommands.Register(subcommands.CommandsCommand(), "")
 
 	// custom
-	subcommands.Register(&status.StatusStacks{stacks}, "")
+	subcommands.Register(&status.StatusStacks{StackSet: stacks}, "")
 	subcommands.Register(&sync.SyncStacks{StackSet: stacks, General: general}, "")
 	subcommands.Register(&configcmd.PrintConfig{StackSet: stacks, General: general}, "")
 }
