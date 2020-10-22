@@ -10,6 +10,8 @@ github.com/jmespath/go-jmespath v0.4.0/go.mod h1:T8mJZnbsbmF+m6zOOFylbeCJqk5+pHW
 github.com/jmespath/go-jmespath/internal/testify v1.5.1/go.mod h1:L3OGu8Wl2/fWfCI6z80xFu9LTZmf1ZRjMHUOPmWr69U=
 github.com/kataras/tablewriter v0.0.0-20180708051242-e063d29b7c23 h1:M8exrBzuhWcU6aoHJlHWPe4qFjVKzkMGRal78f5jRRU=
 github.com/kataras/tablewriter v0.0.0-20180708051242-e063d29b7c23/go.mod h1:kBSna6b0/RzsOcOZf515vAXwSsXYusl2U7SA0XP09yI=
+github.com/keyneston/tabslib v0.0.0-20200904124715-739c15d81515 h1:t767yiFuLO3rPQsqYoV7O5Z7GZX+UsL7ZZ7FjRu4GPE=
+github.com/keyneston/tabslib v0.0.0-20200904124715-739c15d81515/go.mod h1:sg38/3hDkdRoGJfU6pKVmuviD97EIvmauVI1jHMHUbo=
 github.com/lensesio/tableprinter v0.0.0-20200805134727-ea32388e35c1 h1:UxCufmaJGwYgORU8/GrCSHK/LkKiJx2mzgEuOtoc96c=
 github.com/lensesio/tableprinter v0.0.0-20200805134727-ea32388e35c1/go.mod h1:YR/zYthNdWfO8+0IOyHDcIDBBBS2JMnYUIwSsnwmRqU=
 github.com/mattn/go-runewidth v0.0.9 h1:Lm995f3rfxdpd6TSmuVCHVb/QhupuXlYr8sCI/QdE+0=

@@ -17,17 +17,11 @@ import (
 
 type StackSet map[string]*StackConfig
 
-type GeneralConfig struct {
-	AccountID string   `yaml:"account_id"`
-	Regions   []string `yaml:"regions"`
-	Profile   string   `yaml:"aws_profile"`
-}
-
 type StackConfig struct {
-	Name   string                 `yaml:"name"`
-	ARN    string                 `yaml:"arn"`
-	File   string                 `yaml:"file"`
-	Params map[string]interface{} `yaml:"params"`
+	Name   string                 `json:"name"   yaml:"name"`
+	ARN    string                 `json:"arn"    yaml:"arn"`
+	File   string                 `json:"file"   yaml:"file"`
+	Params map[string]interface{} `json:"params" yaml:"params"`
 
 	client    *cf.CloudFormation
 	parsedARN arn.ARN
