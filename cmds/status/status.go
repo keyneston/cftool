@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sync"
 
 	"github.com/google/subcommands"
 	"github.com/keyneston/cfapply/config"
@@ -32,51 +33,82 @@ func (r *StatusStacks) SetFlags(f *flag.FlagSet) {
 
 func (r *StatusStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	entries := []StatusEntry{}
+	errors := []error{}
+
+	results := make(chan StatusEntry, len(r.StackSet))
+	errCh := make(chan error, len(r.StackSet))
+	wg := &sync.WaitGroup{}
+	wg.Add(len(r.StackSet))
 
 	for _, s := range r.StackSet {
-		live, err := s.GetLive()
-		if err != nil {
-			log.Printf("Error: %v", err)
-			return subcommands.ExitFailure
-		}
+		go r.getEntry(wg, results, errCh, s)
+	}
 
-		if len(live.Stacks) == 0 {
-			log.Printf("Error: got invalid length for %#v", s)
-			return subcommands.ExitFailure
-		}
+	wg.Wait()
+	close(results)
+	close(errCh)
 
-		cur := live.Stacks[0]
-		region, _ := s.Region()
-
-		template, err := s.GetTemplate()
-		if err != nil {
-			log.Printf("Error: %v", err)
-			return subcommands.ExitFailure
-		}
-		liveTemplateHash := HashString(template)
-		diskTemplateHash, err := HashFile(s.File)
-		if err != nil {
-			log.Printf("Error: %v", err)
-			return subcommands.ExitFailure
-		}
-
-		entry := StatusEntry{
-			Region:              region,
-			OurName:             s.Name,
-			Name:                *cur.StackName,
-			CloudFormationDrift: "unknown",
-			TemplateDiff:        liveTemplateHash != diskTemplateHash,
-		}
-
-		if cur.DriftInformation != nil && cur.DriftInformation.StackDriftStatus != nil {
-			entry.CloudFormationDrift = *cur.DriftInformation.StackDriftStatus
-		}
-
+	for entry := range results {
 		entries = append(entries, entry)
 	}
 
+	for err := range errCh {
+		log.Printf("Error: %v", err)
+		errors = append(errors, err)
+	}
+
 	tableprinter.Print(os.Stdout, entries)
+
+	if len(errors) != 0 {
+		return subcommands.ExitFailure
+	}
+
 	return subcommands.ExitSuccess
+}
+
+func (r *StatusStacks) getEntry(wg *sync.WaitGroup, results chan<- StatusEntry, errors chan<- error, s *config.StackConfig) {
+	defer wg.Done()
+
+	live, err := s.GetLive()
+	if err != nil {
+		log.Printf("Error: %v", err)
+		errors <- err
+		return
+	}
+
+	if len(live.Stacks) == 0 {
+		errors <- fmt.Errorf("got invalid length for %#v", s)
+		return
+	}
+
+	cur := live.Stacks[0]
+	region, _ := s.Region()
+
+	template, err := s.GetTemplate()
+	if err != nil {
+		errors <- err
+		return
+	}
+	liveTemplateHash := HashString(template)
+	diskTemplateHash, err := HashFile(s.File)
+	if err != nil {
+		errors <- err
+		return
+	}
+
+	entry := StatusEntry{
+		Region:              region,
+		OurName:             s.Name,
+		Name:                *cur.StackName,
+		CloudFormationDrift: "unknown",
+		TemplateDiff:        liveTemplateHash != diskTemplateHash,
+	}
+
+	if cur.DriftInformation != nil && cur.DriftInformation.StackDriftStatus != nil {
+		entry.CloudFormationDrift = *cur.DriftInformation.StackDriftStatus
+	}
+
+	results <- entry
 }
 
 type StatusEntry struct {
