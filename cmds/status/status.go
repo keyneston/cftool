@@ -13,6 +13,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/google/subcommands"
+	"github.com/keyneston/cfapply/awshelpers"
 	"github.com/keyneston/cfapply/config"
 	"github.com/lensesio/tableprinter"
 )
@@ -71,49 +72,51 @@ func (r *StatusStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interf
 func (r *StatusStacks) getEntry(wg *sync.WaitGroup, results chan<- StatusEntry, errors chan<- error, s *config.StackConfig) {
 	defer wg.Done()
 
-	live, err := s.GetLive()
-	if err != nil {
-		log.Printf("Error: %v", err)
-		errors <- err
-		return
-	}
-
-	if len(live.Stacks) == 0 {
-		errors <- fmt.Errorf("got invalid length for %#v", s)
-		return
-	}
-
-	cur := live.Stacks[0]
-	region, _ := s.Region()
-
-	entry := StatusEntry{
-		Region:              region,
-		OurName:             s.Name,
-		Name:                *cur.StackName,
-		CloudFormationDrift: "unknown",
-	}
-
-	if s.File != "" {
-		template, err := s.GetTemplate()
+	awshelpers.Ratelimit(context.TODO(), func() {
+		live, err := s.GetLive()
 		if err != nil {
-			errors <- err
-			return
-		}
-		liveTemplateHash := HashString(template)
-		diskTemplateHash, err := HashFile(s.File)
-		if err != nil {
+			log.Printf("Error: %v", err)
 			errors <- err
 			return
 		}
 
-		entry.TemplateDiff = aws.Bool(liveTemplateHash != diskTemplateHash)
-	}
+		if len(live.Stacks) == 0 {
+			errors <- fmt.Errorf("got invalid length for %#v", s)
+			return
+		}
 
-	if cur.DriftInformation != nil && cur.DriftInformation.StackDriftStatus != nil {
-		entry.CloudFormationDrift = *cur.DriftInformation.StackDriftStatus
-	}
+		cur := live.Stacks[0]
+		region, _ := s.Region()
 
-	results <- entry
+		entry := StatusEntry{
+			Region:              region,
+			OurName:             s.Name,
+			Name:                *cur.StackName,
+			CloudFormationDrift: "unknown",
+		}
+
+		if s.File != "" {
+			template, err := s.GetTemplate()
+			if err != nil {
+				errors <- err
+				return
+			}
+			liveTemplateHash := HashString(template)
+			diskTemplateHash, err := HashFile(s.File)
+			if err != nil {
+				errors <- err
+				return
+			}
+
+			entry.TemplateDiff = aws.Bool(liveTemplateHash != diskTemplateHash)
+		}
+
+		if cur.DriftInformation != nil && cur.DriftInformation.StackDriftStatus != nil {
+			entry.CloudFormationDrift = *cur.DriftInformation.StackDriftStatus
+		}
+
+		results <- entry
+	})
 }
 
 type StatusEntry struct {

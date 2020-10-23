@@ -4,14 +4,13 @@ import (
 	"context"
 	"flag"
 	"log"
-	"math/rand"
 	"path"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/google/subcommands"
+	"github.com/keyneston/cfapply/awshelpers"
 	"github.com/keyneston/cfapply/config"
 	"golang.org/x/sync/semaphore"
 )
@@ -156,24 +155,13 @@ func hydrateStacks(stacks []*config.StackConfig) []error {
 
 func hydrate(ctx context.Context, wg *sync.WaitGroup, errsCh chan<- error, s *config.StackConfig) {
 	defer wg.Done()
-	log.Printf("Waiting to acquire for %q", s.ARN)
 
-	// Add up to one second of jitter:
-	time.Sleep(time.Millisecond * time.Duration(rand.Intn(1000)))
-
-	if err := concurrentAWS.Acquire(ctx, 1); err != nil {
-		errsCh <- err
-		return
-	}
-	log.Printf("Acquired for %q", s.ARN)
-	defer concurrentAWS.Release(1)
-
-	if err := s.Hydrate(); err != nil {
-		errsCh <- err
-		return
-	}
-
-	log.Printf("Releasing for %q", s.ARN)
+	awshelpers.Ratelimit(ctx, func() {
+		if err := s.Hydrate(); err != nil {
+			errsCh <- err
+			return
+		}
+	})
 }
 
 func convertToLocal(stacks []*cloudformation.StackSummary) []*config.StackConfig {
