@@ -72,7 +72,8 @@ func (r *StatusStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interf
 func (r *StatusStacks) getEntry(wg *sync.WaitGroup, results chan<- StatusEntry, errors chan<- error, s *config.StackConfig) {
 	defer wg.Done()
 
-	awshelpers.Ratelimit(context.TODO(), func() {
+	region, _ := s.Region()
+	awshelpers.Ratelimit(context.TODO(), region, func() {
 		live, err := s.GetLive()
 		if err != nil {
 			log.Printf("Error: %v", err)

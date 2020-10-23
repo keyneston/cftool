@@ -3,26 +3,25 @@ package awshelpers
 import (
 	"context"
 	"log"
-	"math/rand"
-	"time"
+	"sync"
 
 	"golang.org/x/sync/semaphore"
 )
 
 const MaxConcurrentAWS = 3
 
-var concurrentAWS = semaphore.NewWeighted(MaxConcurrentAWS)
+var semaphores = &sync.Map{}
 
 type Doer func()
 
-func Ratelimit(ctx context.Context, doer Doer) {
-	// Add up to one second of jitter:
-	time.Sleep(time.Millisecond * time.Duration(rand.Intn(1000)))
+func Ratelimit(ctx context.Context, region string, doer Doer) {
+	untypedSemp, _ := semaphores.LoadOrStore(region, semaphore.NewWeighted(MaxConcurrentAWS))
+	semp := untypedSemp.(*semaphore.Weighted)
 
-	if err := concurrentAWS.Acquire(ctx, 1); err != nil {
+	if err := semp.Acquire(ctx, 1); err != nil {
 		log.Printf("Error: error acquiring semaphore: %v", err)
 		return
 	}
-	defer concurrentAWS.Release(1)
+	defer semp.Release(1)
 	doer()
 }

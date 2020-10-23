@@ -156,7 +156,8 @@ func hydrateStacks(stacks []*config.StackConfig) []error {
 func hydrate(ctx context.Context, wg *sync.WaitGroup, errsCh chan<- error, s *config.StackConfig) {
 	defer wg.Done()
 
-	awshelpers.Ratelimit(ctx, func() {
+	region, _ := s.Region()
+	awshelpers.Ratelimit(ctx, region, func() {
 		if err := s.Hydrate(); err != nil {
 			errsCh <- err
 			return

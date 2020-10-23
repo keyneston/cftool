@@ -10,8 +10,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
-	"github.com/aws/aws-sdk-go/aws/session"
 	cf "github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/keyneston/cfapply/awshelpers"
 	"gopkg.in/yaml.v2"
 )
 
@@ -58,10 +58,7 @@ func AWSClient(region string) (*cf.CloudFormation, error) {
 		region = "us-east-1"
 	}
 
-	sess := session.Must(session.NewSession())
-	config := aws.NewConfig().WithRegion(region) // TODO: fix this
-
-	srv := cf.New(sess, config)
+	srv := awshelpers.GetClient(region)
 	return srv, nil
 }
 
