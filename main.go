@@ -4,7 +4,9 @@ import (
 	"context"
 	"flag"
 	"log"
+	"math/rand"
 	"os"
+	"time"
 
 	"github.com/google/subcommands"
 	"github.com/keyneston/cfapply/cmds/configcmd"
@@ -27,6 +29,7 @@ func registerSubcommands(general *config.GeneralConfig, stacks *config.StacksDB)
 
 func main() {
 	ctx := context.Background()
+	rand.Seed(time.Now().UnixNano())
 	flag.Parse()
 
 	generalConfig, err := config.LoadConfig()

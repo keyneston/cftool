@@ -3,7 +3,7 @@ package config
 type StacksDB struct {
 	All    []*StackConfig
 	byName map[string]*StackConfig
-	byArn  map[string]*StackConfig
+	byARN  map[string]*StackConfig
 }
 
 func (s *StacksDB) AddStack(stacks ...*StackConfig) {
@@ -11,8 +11,8 @@ func (s *StacksDB) AddStack(stacks ...*StackConfig) {
 		s.byName = map[string]*StackConfig{}
 	}
 
-	if s.byArn == nil {
-		s.byArn = map[string]*StackConfig{}
+	if s.byARN == nil {
+		s.byARN = map[string]*StackConfig{}
 	}
 
 	for _, stack := range stacks {
@@ -20,7 +20,7 @@ func (s *StacksDB) AddStack(stacks ...*StackConfig) {
 			s.byName[stack.Name] = stack
 		}
 
-		s.byArn[stack.ARN] = stack
+		s.byARN[stack.ARN] = stack
 		s.All = append(s.All, stack)
 	}
 }
@@ -30,7 +30,7 @@ func (s *StacksDB) FindByName(name string) *StackConfig {
 }
 
 func (s *StacksDB) FindByARN(name string) *StackConfig {
-	return s.byName[name]
+	return s.byARN[name]
 }
 
 func (s StacksDB) Len() int {

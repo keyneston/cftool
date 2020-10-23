@@ -4,7 +4,11 @@ import (
 	"context"
 	"flag"
 	"log"
+	"math/rand"
+	"path"
+	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/google/subcommands"
@@ -67,10 +71,33 @@ func (r *SyncStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 		}
 	}
 
-	log.Printf("%d stacks to update", len(updateStacks))
-	log.Printf("%d stacks to create", len(newStacks))
+	if err := r.updateStacks(updateStacks); err != nil {
+		log.Printf("Error: %v", err)
+		return subcommands.ExitFailure
+	}
+
+	if err := r.createStacks(newStacks); err != nil {
+		log.Printf("Error: %v", err)
+		return subcommands.ExitFailure
+	}
 
 	return exitCode
+}
+
+func (r *SyncStacks) updateStacks(stacks []*config.StackConfig) error {
+	return nil
+}
+
+func (r *SyncStacks) createStacks(stacks []*config.StackConfig) error {
+	for _, s := range stacks {
+		location := filepath.Clean(path.Join("examples", s.Name+".yml"))
+
+		if err := s.Save(location); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (r *SyncStacks) getRegion(region string) ([]*config.StackConfig, error) {
@@ -129,16 +156,24 @@ func hydrateStacks(stacks []*config.StackConfig) []error {
 
 func hydrate(ctx context.Context, wg *sync.WaitGroup, errsCh chan<- error, s *config.StackConfig) {
 	defer wg.Done()
+	log.Printf("Waiting to acquire for %q", s.ARN)
+
+	// Add up to one second of jitter:
+	time.Sleep(time.Millisecond * time.Duration(rand.Intn(1000)))
+
 	if err := concurrentAWS.Acquire(ctx, 1); err != nil {
 		errsCh <- err
 		return
 	}
+	log.Printf("Acquired for %q", s.ARN)
 	defer concurrentAWS.Release(1)
 
 	if err := s.Hydrate(); err != nil {
 		errsCh <- err
 		return
 	}
+
+	log.Printf("Releasing for %q", s.ARN)
 }
 
 func convertToLocal(stacks []*cloudformation.StackSummary) []*config.StackConfig {
@@ -146,7 +181,7 @@ func convertToLocal(stacks []*cloudformation.StackSummary) []*config.StackConfig
 
 	for _, s := range stacks {
 		res = append(res, &config.StackConfig{
-			Name: "unknown",
+			Name: *s.StackName,
 			ARN:  *s.StackId,
 		})
 	}

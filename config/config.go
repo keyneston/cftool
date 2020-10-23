@@ -208,3 +208,16 @@ func LoadStackFromFile(file string) (*StackConfig, error) {
 
 	return stack, nil
 }
+
+func (s *StackConfig) Save(location string) error {
+	f, err := os.OpenFile(location, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o655)
+	if err != nil {
+		return err
+	}
+
+	if err := yaml.NewEncoder(f).Encode(s); err != nil {
+		return err
+	}
+
+	return nil
+}

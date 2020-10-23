@@ -11,6 +11,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/google/subcommands"
 	"github.com/keyneston/cfapply/config"
 	"github.com/lensesio/tableprinter"
@@ -85,24 +86,27 @@ func (r *StatusStacks) getEntry(wg *sync.WaitGroup, results chan<- StatusEntry, 
 	cur := live.Stacks[0]
 	region, _ := s.Region()
 
-	template, err := s.GetTemplate()
-	if err != nil {
-		errors <- err
-		return
-	}
-	liveTemplateHash := HashString(template)
-	diskTemplateHash, err := HashFile(s.File)
-	if err != nil {
-		errors <- err
-		return
-	}
-
 	entry := StatusEntry{
 		Region:              region,
 		OurName:             s.Name,
 		Name:                *cur.StackName,
 		CloudFormationDrift: "unknown",
-		TemplateDiff:        liveTemplateHash != diskTemplateHash,
+	}
+
+	if s.File != "" {
+		template, err := s.GetTemplate()
+		if err != nil {
+			errors <- err
+			return
+		}
+		liveTemplateHash := HashString(template)
+		diskTemplateHash, err := HashFile(s.File)
+		if err != nil {
+			errors <- err
+			return
+		}
+
+		entry.TemplateDiff = aws.Bool(liveTemplateHash != diskTemplateHash)
 	}
 
 	if cur.DriftInformation != nil && cur.DriftInformation.StackDriftStatus != nil {
@@ -117,7 +121,7 @@ type StatusEntry struct {
 	Name                string `header:"stackname"`
 	OurName             string `header:"internal name"`
 	CloudFormationDrift string `header:"cloudformation drift"`
-	TemplateDiff        bool   `header:"template drift"`
+	TemplateDiff        *bool  `header:"template drift"`
 }
 
 func HashFile(filename string) (string, error) {
