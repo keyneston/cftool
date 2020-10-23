@@ -13,16 +13,16 @@ import (
 	"github.com/keyneston/cfapply/config"
 )
 
-func registerSubcommands(general *config.GeneralConfig, stacks config.StackSet) {
+func registerSubcommands(general *config.GeneralConfig, stacks *config.StacksDB) {
 	// builtin
 	subcommands.Register(subcommands.HelpCommand(), "")
 	subcommands.Register(subcommands.FlagsCommand(), "")
 	subcommands.Register(subcommands.CommandsCommand(), "")
 
 	// custom
-	subcommands.Register(&status.StatusStacks{StackSet: stacks}, "")
-	subcommands.Register(&sync.SyncStacks{StackSet: stacks, General: general}, "")
-	subcommands.Register(&configcmd.PrintConfig{StackSet: stacks, General: general}, "")
+	subcommands.Register(&status.StatusStacks{StacksDB: stacks, General: general}, "")
+	subcommands.Register(&sync.SyncStacks{StacksDB: stacks, General: general}, "")
+	subcommands.Register(&configcmd.PrintConfig{StacksDB: stacks, General: general}, "")
 }
 
 func main() {

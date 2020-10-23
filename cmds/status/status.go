@@ -17,7 +17,8 @@ import (
 )
 
 type StatusStacks struct {
-	StackSet config.StackSet
+	General  *config.GeneralConfig
+	StacksDB *config.StacksDB
 }
 
 func (*StatusStacks) Name() string     { return "status" }
@@ -35,12 +36,12 @@ func (r *StatusStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interf
 	entries := []StatusEntry{}
 	errors := []error{}
 
-	results := make(chan StatusEntry, len(r.StackSet))
-	errCh := make(chan error, len(r.StackSet))
+	results := make(chan StatusEntry, r.StacksDB.Len())
+	errCh := make(chan error, r.StacksDB.Len())
 	wg := &sync.WaitGroup{}
-	wg.Add(len(r.StackSet))
+	wg.Add(r.StacksDB.Len())
 
-	for _, s := range r.StackSet {
+	for _, s := range r.StacksDB.All {
 		go r.getEntry(wg, results, errCh, s)
 	}
 

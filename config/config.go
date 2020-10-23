@@ -15,13 +15,12 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type StackSet map[string]*StackConfig
-
 type StackConfig struct {
 	Name   string                 `json:"name"   yaml:"name"`
 	ARN    string                 `json:"arn"    yaml:"arn"`
 	File   string                 `json:"file"   yaml:"file"`
 	Params map[string]interface{} `json:"params" yaml:"params"`
+	Source string                 `json:"source" yaml:"-"`
 
 	client    *cf.CloudFormation
 	parsedARN arn.ARN
@@ -66,7 +65,7 @@ func AWSClient(region string) (*cf.CloudFormation, error) {
 	return srv, nil
 }
 
-func LoadStacksFromWD() (map[string]*StackConfig, error) {
+func LoadStacksFromWD() (*StacksDB, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		log.Printf("Error getting cwd: %#v", err)
@@ -76,13 +75,19 @@ func LoadStacksFromWD() (map[string]*StackConfig, error) {
 	return LoadStacks(cwd)
 }
 
-func LoadStacks(root string) (map[string]*StackConfig, error) {
-	stacks := map[string]*StackConfig{}
+func LoadStacks(root string) (*StacksDB, error) {
+	db := &StacksDB{}
 
 	filesToParse := []string{}
+	config := FindConfig()
 	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
+		}
+
+		// Don't re-parse the config file
+		if filepath.Base(path) == config {
+			return nil
 		}
 
 		ext := filepath.Ext(path)
@@ -93,21 +98,26 @@ func LoadStacks(root string) (map[string]*StackConfig, error) {
 	})
 
 	for _, path := range filesToParse {
-		stack, err := LoadStackFromFile(path)
+		relativePath, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil, err
+		}
+		// relativePath := "./" + path[len(root)+1:len(path)]
+		stack, err := LoadStackFromFile(relativePath)
 		switch err {
 		case nil:
 			break
 		case io.EOF:
-			log.Printf("Warning: file %q empty", path)
+			log.Printf("Warning: file %q empty", relativePath)
 			continue
 		default:
 			return nil, err // TODO: collect errors here and return as a batch
 		}
 
-		stacks[stack.Name] = stack
+		db.AddStack(stack)
 	}
 
-	return stacks, nil
+	return db, nil
 }
 
 func (s *StackConfig) GetTemplate() (string, error) {
@@ -149,6 +159,30 @@ func (s *StackConfig) GetLive() (*cf.DescribeStacksOutput, error) {
 	return out, nil
 }
 
+func (s *StackConfig) Hydrate() error {
+	live, err := s.GetLive()
+	if err != nil {
+		return err
+	}
+
+	if len(live.Stacks) == 0 {
+		return nil
+	}
+	cur := live.Stacks[0]
+
+	if len(cur.Parameters) > 0 && s.Params == nil {
+		s.Params = map[string]interface{}{}
+	}
+
+	for _, pair := range cur.Parameters {
+		if pair.ParameterKey != nil && pair.ParameterValue != nil {
+			s.Params[*pair.ParameterKey] = *pair.ParameterValue
+		}
+	}
+
+	return nil
+}
+
 func (s StackConfig) Region() (string, error) {
 	stackARN, err := arn.Parse(s.ARN)
 	if err != nil {
@@ -160,6 +194,7 @@ func (s StackConfig) Region() (string, error) {
 
 func LoadStackFromFile(file string) (*StackConfig, error) {
 	stack := &StackConfig{}
+	stack.Source = file
 
 	f, err := os.Open(file)
 	if err != nil {

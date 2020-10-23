@@ -4,16 +4,21 @@ import (
 	"context"
 	"flag"
 	"log"
+	"sync"
 
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/google/subcommands"
 	"github.com/keyneston/cfapply/config"
-	"github.com/keyneston/tabslib"
+	"golang.org/x/sync/semaphore"
 )
+
+const MaxConcurrentAWS = 3
+
+var concurrentAWS = semaphore.NewWeighted(MaxConcurrentAWS)
 
 type SyncStacks struct {
 	General  *config.GeneralConfig
-	StackSet config.StackSet
+	StacksDB *config.StacksDB
 
 	Noop bool
 }
@@ -31,8 +36,7 @@ func (r *SyncStacks) SetFlags(f *flag.FlagSet) {
 }
 
 func (r *SyncStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	log.Printf("%s", tabslib.PrettyString(r))
-	stacks := []*config.StackConfig{}
+	stacks := config.StacksDB{}
 
 	for _, reg := range r.General.Regions {
 		regStacks, err := r.getRegion(reg)
@@ -41,13 +45,32 @@ func (r *SyncStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 			return subcommands.ExitFailure
 		}
 
-		stacks = append(stacks, regStacks...)
+		stacks.AddStack(regStacks...)
 	}
 
-	log.Printf("Got: %v", tabslib.PrettyString(stacks))
-	log.Printf("%d stacks", len(stacks))
+	exitCode := subcommands.ExitSuccess
+	for _, err := range hydrateStacks(stacks.All) {
+		exitCode = subcommands.ExitFailure
+		log.Printf("Error: %v", err)
+	}
 
-	return subcommands.ExitSuccess
+	// Figure out what is new, and what already exists:
+	newStacks := []*config.StackConfig{}
+	updateStacks := []*config.StackConfig{}
+
+	for _, s := range stacks.All {
+		found := r.StacksDB.FindByARN(s.ARN)
+		if found == nil {
+			newStacks = append(newStacks, s)
+		} else {
+			updateStacks = append(updateStacks, s)
+		}
+	}
+
+	log.Printf("%d stacks to update", len(updateStacks))
+	log.Printf("%d stacks to create", len(newStacks))
+
+	return exitCode
 }
 
 func (r *SyncStacks) getRegion(region string) ([]*config.StackConfig, error) {
@@ -74,10 +97,48 @@ func (r *SyncStacks) getRegion(region string) ([]*config.StackConfig, error) {
 			break
 		}
 		next = res.NextToken
-
 	}
 
 	return stacks, nil
+}
+
+func hydrateStacks(stacks []*config.StackConfig) []error {
+	errs := []error{}
+	// TODO: parallelise
+
+	wg := &sync.WaitGroup{}
+	errsCh := make(chan error, len(stacks))
+
+	for _, s := range stacks {
+		wg.Add(1)
+		go hydrate(context.TODO(), wg, errsCh, s)
+	}
+
+	wg.Wait()
+	close(errsCh)
+
+	for err := range errsCh {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return errs
+	}
+	return nil
+}
+
+func hydrate(ctx context.Context, wg *sync.WaitGroup, errsCh chan<- error, s *config.StackConfig) {
+	defer wg.Done()
+	if err := concurrentAWS.Acquire(ctx, 1); err != nil {
+		errsCh <- err
+		return
+	}
+	defer concurrentAWS.Release(1)
+
+	if err := s.Hydrate(); err != nil {
+		errsCh <- err
+		return
+	}
 }
 
 func convertToLocal(stacks []*cloudformation.StackSummary) []*config.StackConfig {

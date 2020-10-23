@@ -13,7 +13,7 @@ import (
 
 type PrintConfig struct {
 	General  *config.GeneralConfig `json:"general"`
-	StackSet config.StackSet       `json:"stacks"`
+	StacksDB *config.StacksDB      `json:"stacks"`
 }
 
 func (*PrintConfig) Name() string     { return "config" }
