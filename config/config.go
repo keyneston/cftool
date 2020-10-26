@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -217,4 +218,12 @@ func (s *StackConfig) Save(location string) error {
 	}
 
 	return nil
+}
+
+func (s StackConfig) Location() string {
+	if s.Source != "" {
+		return s.Source
+	}
+
+	return filepath.Clean(path.Join("examples", s.Name+".yml"))
 }

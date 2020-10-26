@@ -48,8 +48,8 @@ func (r *StatusStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interf
 
 	results := make(chan StatusEntry, r.StacksDB.Len())
 	errCh := make(chan error, r.StacksDB.Len())
-	wg.Add(len(stacks))
-	for _, s := range stacks {
+	wg.Add(stacks.Len())
+	for _, s := range stacks.All {
 		go r.getEntry(wg, results, errCh, s)
 	}
 

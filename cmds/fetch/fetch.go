@@ -4,8 +4,6 @@ import (
 	"context"
 	"flag"
 	"log"
-	"path"
-	"path/filepath"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/service/cloudformation"
@@ -39,7 +37,7 @@ func (r *FetchStacks) SetFlags(f *flag.FlagSet) {
 }
 
 func (r *FetchStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	stacks := config.StacksDB{}
+	fetchedStacks := config.StacksDB{}
 
 	for _, reg := range r.General.Regions {
 		regStacks, err := r.getRegion(reg)
@@ -48,32 +46,44 @@ func (r *FetchStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfa
 			return subcommands.ExitFailure
 		}
 
-		stacks.AddStack(regStacks...)
+		fetchedStacks.AddStack(regStacks...)
 	}
 
-	exitCode := subcommands.ExitSuccess
-	for _, err := range hydrateStacks(stacks.All) {
-		exitCode = subcommands.ExitFailure
+	filteredDiskStacks, err := r.StacksDB.Filter(f.Args()...)
+	if err != nil {
 		log.Printf("Error: %v", err)
+		return subcommands.ExitFailure
+	}
+
+	filteredFetchedStacks, err := fetchedStacks.Filter(f.Args()...)
+	if err != nil {
+		log.Printf("Error: %v", err)
+		return subcommands.ExitFailure
 	}
 
 	// Figure out what is new, and what already exists:
 	newStacks := []*config.StackConfig{}
 	updateStacks := []*config.StackConfig{}
 
-	for _, s := range stacks.All {
-		found := r.StacksDB.FindByARN(s.ARN)
-		if found == nil {
-			newStacks = append(newStacks, s)
-		} else {
-			updateStacks = append(updateStacks, s)
+	for _, s := range fetchedStacks.All {
+		filtered := filteredFetchedStacks.FindByARN(s.ARN)
+		onDisk := filteredDiskStacks.FindByARN(s.ARN)
+
+		// if filtered and exists: update
+		// if filtered and not exists: create
+		if filtered != nil && onDisk == nil {
+			newStacks = append(newStacks, filtered)
+		} else if onDisk != nil {
+			updateStacks = append(updateStacks, onDisk) // pass the onDisk version since it has some data we want (Source)
 		}
 	}
 
+	exitCode := subcommands.ExitSuccess
 	if err := r.updateStacks(updateStacks); err != nil {
 		log.Printf("Error: %v", err)
 		return subcommands.ExitFailure
 	}
+	log.Fatal("done")
 
 	if err := r.createStacks(newStacks); err != nil {
 		log.Printf("Error: %v", err)
@@ -84,12 +94,40 @@ func (r *FetchStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfa
 }
 
 func (r *FetchStacks) updateStacks(stacks []*config.StackConfig) error {
+	log.Printf("INFO: updating %d stacks", len(stacks))
+	for _, err := range hydrateStacks(stacks) {
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, s := range stacks {
+		location := s.Location()
+
+		disk, err := config.LoadStackFromFile(location)
+		if err != nil {
+			return err
+		}
+
+		disk = s
+
+		if err := disk.Save(location); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
 func (r *FetchStacks) createStacks(stacks []*config.StackConfig) error {
+	for _, err := range hydrateStacks(stacks) {
+		if err != nil {
+			return err
+		}
+	}
+
 	for _, s := range stacks {
-		location := filepath.Clean(path.Join("examples", s.Name+".yml"))
+		location := s.Location()
 
 		if err := s.Save(location); err != nil {
 			return err

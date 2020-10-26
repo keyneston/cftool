@@ -41,13 +41,11 @@ func (s StacksDB) Len() int {
 	return len(s.All)
 }
 
-// TODO: this should return a new (smaller) StacksDB
-func (s *StacksDB) Filter(keys ...string) ([]*StackConfig, error) {
-	// TODO: dedup here
-	res := []*StackConfig{}
+func (s *StacksDB) Filter(keys ...string) (*StacksDB, error) {
+	res := &StacksDB{}
 
 	if len(keys) == 0 {
-		return s.All, nil
+		return s, nil
 	}
 
 	for _, k := range keys {
@@ -57,8 +55,8 @@ func (s *StacksDB) Filter(keys ...string) ([]*StackConfig, error) {
 		}
 
 		for _, stack := range s.All {
-			if r.MatchString(stack.Name) {
-				res = append(res, stack)
+			if r.MatchString(stack.Name) || r.MatchString(stack.ARN) {
+				res.AddStack(stack)
 			}
 		}
 	}
