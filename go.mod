@@ -10,6 +10,7 @@ require (
 	github.com/keyneston/tabslib v0.0.0-20200904124715-739c15d81515
 	github.com/lensesio/tableprinter v0.0.0-20200805134727-ea32388e35c1
 	github.com/mattn/go-runewidth v0.0.9 // indirect
+	github.com/pmezard/go-difflib v1.0.0
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 	gopkg.in/yaml.v2 v2.3.0
 )

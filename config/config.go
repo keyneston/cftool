@@ -258,7 +258,7 @@ func (s StackConfig) GetDiskTemplateHash() (string, error) {
 }
 
 func (s StackConfig) GetDiskTemplate() (string, error) {
-	f, err := os.Open(s.Source)
+	f, err := os.Open(s.File)
 	if err != nil {
 		return "", err
 	}

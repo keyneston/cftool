@@ -34,8 +34,6 @@ Gets the status of the managed stacks.
 * `cftool fetch [<filter1>...]`
 	Sync the parameters, and stacks from AWS to the local disk.
 
-## Theoretical Commands
-
 * `cftool diff-template`
 	Grabs the live template, and gives a diff against the local version.
 

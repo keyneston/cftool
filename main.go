@@ -11,6 +11,7 @@ import (
 	"github.com/google/subcommands"
 	"github.com/keyneston/cftool/cmds/configcmd"
 	"github.com/keyneston/cftool/cmds/diff"
+	"github.com/keyneston/cftool/cmds/difftemplate"
 	"github.com/keyneston/cftool/cmds/fetch"
 	"github.com/keyneston/cftool/cmds/status"
 	"github.com/keyneston/cftool/config"
@@ -27,6 +28,7 @@ func registerSubcommands(general *config.GeneralConfig, stacks *config.StacksDB)
 	subcommands.Register(&fetch.FetchStacks{StacksDB: stacks, General: general}, "")
 	subcommands.Register(&configcmd.PrintConfig{StacksDB: stacks, General: general}, "")
 	subcommands.Register(&diff.DiffStacks{StacksDB: stacks, General: general}, "")
+	subcommands.Register(&difftemplate.DiffTemplate{StacksDB: stacks, General: general}, "")
 }
 
 func main() {
