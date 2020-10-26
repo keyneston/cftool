@@ -1,4 +1,4 @@
-module github.com/keyneston/cfapply
+module github.com/keyneston/cftool
 
 go 1.15
 

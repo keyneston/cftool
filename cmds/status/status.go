@@ -13,14 +13,16 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/google/subcommands"
-	"github.com/keyneston/cfapply/awshelpers"
-	"github.com/keyneston/cfapply/config"
+	"github.com/keyneston/cftool/awshelpers"
+	"github.com/keyneston/cftool/config"
+	"github.com/keyneston/cftool/filter"
 	"github.com/lensesio/tableprinter"
 )
 
 type StatusStacks struct {
 	General  *config.GeneralConfig
 	StacksDB *config.StacksDB
+	filter   *filter.Fitler
 }
 
 func (*StatusStacks) Name() string     { return "status" }
@@ -32,6 +34,7 @@ func (*StatusStacks) Usage() string {
 }
 
 func (r *StatusStacks) SetFlags(f *flag.FlagSet) {
+	r.filter = filter.New(f)
 }
 
 func (r *StatusStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {

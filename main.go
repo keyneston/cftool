@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/google/subcommands"
-	"github.com/keyneston/cfapply/cmds/configcmd"
-	"github.com/keyneston/cfapply/cmds/status"
-	"github.com/keyneston/cfapply/cmds/sync"
-	"github.com/keyneston/cfapply/config"
+	"github.com/keyneston/cftool/cmds/configcmd"
+	"github.com/keyneston/cftool/cmds/status"
+	"github.com/keyneston/cftool/cmds/sync"
+	"github.com/keyneston/cftool/config"
 )
 
 func registerSubcommands(general *config.GeneralConfig, stacks *config.StacksDB) {

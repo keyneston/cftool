@@ -11,7 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	cf "github.com/aws/aws-sdk-go/service/cloudformation"
-	"github.com/keyneston/cfapply/awshelpers"
+	"github.com/keyneston/cftool/awshelpers"
 	"gopkg.in/yaml.v2"
 )
 

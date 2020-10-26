@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/google/subcommands"
-	"github.com/keyneston/cfapply/config"
+	"github.com/keyneston/cftool/config"
 	"github.com/keyneston/tabslib"
 )
 

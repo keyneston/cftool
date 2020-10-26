@@ -10,8 +10,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/google/subcommands"
-	"github.com/keyneston/cfapply/awshelpers"
-	"github.com/keyneston/cfapply/config"
+	"github.com/keyneston/cftool/awshelpers"
+	"github.com/keyneston/cftool/config"
 	"golang.org/x/sync/semaphore"
 )
 
