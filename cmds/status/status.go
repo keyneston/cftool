@@ -15,38 +15,41 @@ import (
 	"github.com/google/subcommands"
 	"github.com/keyneston/cftool/awshelpers"
 	"github.com/keyneston/cftool/config"
-	"github.com/keyneston/cftool/filter"
 	"github.com/lensesio/tableprinter"
 )
 
 type StatusStacks struct {
 	General  *config.GeneralConfig
 	StacksDB *config.StacksDB
-	filter   *filter.Fitler
 }
 
 func (*StatusStacks) Name() string     { return "status" }
 func (*StatusStacks) Synopsis() string { return "Lists the stacks and their status" }
 func (*StatusStacks) Usage() string {
-	return `status:
-	Lists the stacks and their status
+	return `status [<filter1>, <filter2>...]
+	Lists the stacks and their status. Filters are additive.
 `
 }
 
 func (r *StatusStacks) SetFlags(f *flag.FlagSet) {
-	r.filter = filter.New(f)
 }
 
 func (r *StatusStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	entries := []StatusEntry{}
 	errors := []error{}
 
+	wg := &sync.WaitGroup{}
+
+	stacks, err := r.StacksDB.Filter(f.Args()...)
+	if err != nil {
+		log.Printf("Error: %v", err)
+		return subcommands.ExitFailure
+	}
+
 	results := make(chan StatusEntry, r.StacksDB.Len())
 	errCh := make(chan error, r.StacksDB.Len())
-	wg := &sync.WaitGroup{}
-	wg.Add(r.StacksDB.Len())
-
-	for _, s := range r.StacksDB.All {
+	wg.Add(len(stacks))
+	for _, s := range stacks {
 		go r.getEntry(wg, results, errCh, s)
 	}
 
