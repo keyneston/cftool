@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/subcommands"
 	"github.com/keyneston/cftool/cmds/configcmd"
+	"github.com/keyneston/cftool/cmds/fetch"
 	"github.com/keyneston/cftool/cmds/status"
-	"github.com/keyneston/cftool/cmds/sync"
 	"github.com/keyneston/cftool/config"
 )
 
@@ -23,7 +23,7 @@ func registerSubcommands(general *config.GeneralConfig, stacks *config.StacksDB)
 
 	// custom
 	subcommands.Register(&status.StatusStacks{StacksDB: stacks, General: general}, "")
-	subcommands.Register(&sync.SyncStacks{StacksDB: stacks, General: general}, "")
+	subcommands.Register(&fetch.FetchStacks{StacksDB: stacks, General: general}, "")
 	subcommands.Register(&configcmd.PrintConfig{StacksDB: stacks, General: general}, "")
 }
 

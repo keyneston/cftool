@@ -1,4 +1,4 @@
-package sync
+package fetch
 
 import (
 	"context"
@@ -19,26 +19,26 @@ const MaxConcurrentAWS = 3
 
 var concurrentAWS = semaphore.NewWeighted(MaxConcurrentAWS)
 
-type SyncStacks struct {
+type FetchStacks struct {
 	General  *config.GeneralConfig
 	StacksDB *config.StacksDB
 
 	Noop bool
 }
 
-func (*SyncStacks) Name() string     { return "sync" }
-func (*SyncStacks) Synopsis() string { return "Sync the stacks and their parameters" }
-func (*SyncStacks) Usage() string {
-	return `sync:
-	Syncs the stacks and their parameters
+func (*FetchStacks) Name() string     { return "fetch" }
+func (*FetchStacks) Synopsis() string { return "Fetch the stacks and their parameters" }
+func (*FetchStacks) Usage() string {
+	return `fetch:
+	Fetches the stacks and their parameters
 `
 }
 
-func (r *SyncStacks) SetFlags(f *flag.FlagSet) {
+func (r *FetchStacks) SetFlags(f *flag.FlagSet) {
 	f.BoolVar(&r.Noop, "noop", false, "noop don't write changes")
 }
 
-func (r *SyncStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+func (r *FetchStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	stacks := config.StacksDB{}
 
 	for _, reg := range r.General.Regions {
@@ -83,11 +83,11 @@ func (r *SyncStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 	return exitCode
 }
 
-func (r *SyncStacks) updateStacks(stacks []*config.StackConfig) error {
+func (r *FetchStacks) updateStacks(stacks []*config.StackConfig) error {
 	return nil
 }
 
-func (r *SyncStacks) createStacks(stacks []*config.StackConfig) error {
+func (r *FetchStacks) createStacks(stacks []*config.StackConfig) error {
 	for _, s := range stacks {
 		location := filepath.Clean(path.Join("examples", s.Name+".yml"))
 
@@ -99,7 +99,7 @@ func (r *SyncStacks) createStacks(stacks []*config.StackConfig) error {
 	return nil
 }
 
-func (r *SyncStacks) getRegion(region string) ([]*config.StackConfig, error) {
+func (r *FetchStacks) getRegion(region string) ([]*config.StackConfig, error) {
 	log.Printf("INFO: Fetching %q", region) // TODO: switch to proper logger
 
 	client, err := config.AWSClient(region)
