@@ -8,7 +8,12 @@ yaml state files. Then you can use `cftool` to apply changes.
 
 ## Commands
 
-* `cftool status`
+Filters are currently limited and simply check for the existence of the word
+in the region, local name, or stack name. So if you send the filters "us-east"
+and "chat" you will get all stacks that say "chat" and all stacks in
+"us-east".
+
+* `cftool status [<filter1>...]`
 
 Gets the status of the managed stacks.
 
@@ -20,18 +25,19 @@ Gets the status of the managed stacks.
   us-east-1        chat-c1                 us_east:c1      NOT_CHECKED            No
 ```
 
-## Theoretical Commands
+* `cftool diff [<filter1>...]`
+   **PARTIALY COMPLETE**
+   Upload a copy of the new template and generate a change set of what would
+   change. This currently prepares the changeset but does not upload it, nor
+   prints out what would change.
 
-* `cftool sync`
-	Looks through the cloud formation stacks you have and syncs them into
-	local yaml files.
+* `cftool fetch [<filter1>...]`
+	Sync the parameters, and stacks from AWS to the local disk.
+
+## Theoretical Commands
 
 * `cftool diff-template`
 	Grabs the live template, and gives a diff against the local version.
-
-* `cftool diff <name>`
-	Uploads the new local template and informs you what would change if the
-	new one is uploaded.
 
 ## Local Config
 
