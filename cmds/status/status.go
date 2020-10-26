@@ -2,11 +2,8 @@ package status
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"sync"
@@ -103,13 +100,12 @@ func (r *StatusStacks) getEntry(wg *sync.WaitGroup, results chan<- StatusEntry, 
 		}
 
 		if s.File != "" {
-			template, err := s.GetTemplate()
+			liveTemplateHash, err := s.GetLiveTemplateHash()
 			if err != nil {
 				errors <- err
 				return
 			}
-			liveTemplateHash := HashString(template)
-			diskTemplateHash, err := HashFile(s.File)
+			diskTemplateHash, err := s.GetDiskTemplateHash()
 			if err != nil {
 				errors <- err
 				return
@@ -132,25 +128,4 @@ type StatusEntry struct {
 	OurName             string `header:"internal name"`
 	CloudFormationDrift string `header:"cloudformation drift"`
 	TemplateDiff        *bool  `header:"template drift"`
-}
-
-func HashFile(filename string) (string, error) {
-	hasher := sha256.New()
-	f, err := os.Open(filename)
-	if err != nil {
-		return "", fmt.Errorf("error hashing %q: %v", filename, err)
-	}
-	defer f.Close()
-	if _, err := io.Copy(hasher, f); err != nil {
-		return "", fmt.Errorf("error hashing %q: %v", filename, err)
-	}
-
-	return hex.EncodeToString(hasher.Sum(nil)), nil
-}
-
-func HashString(input string) string {
-	hasher := sha256.New()
-	hasher.Write([]byte(input))
-
-	return hex.EncodeToString(hasher.Sum(nil))
 }

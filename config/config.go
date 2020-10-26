@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -11,41 +12,56 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go/service/cloudformation"
 	cf "github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/keyneston/cftool/awshelpers"
+	"github.com/keyneston/cftool/helpers"
 	"gopkg.in/yaml.v2"
 )
 
 type StackConfig struct {
-	Name   string                 `json:"name"   yaml:"name"`
-	ARN    string                 `json:"arn"    yaml:"arn"`
-	File   string                 `json:"file"   yaml:"file"`
-	Params map[string]interface{} `json:"params" yaml:"params"`
-	Source string                 `json:"source" yaml:"-"`
+	Name   string            `json:"name"   yaml:"name"`
+	ARN    string            `json:"arn"    yaml:"arn"`
+	File   string            `json:"file"   yaml:"file"`
+	Params map[string]string `json:"params" yaml:"params"`
+	Source string            `json:"source" yaml:"-"`
 
 	client    *cf.CloudFormation
 	parsedARN arn.ARN
 	stackName string
 }
 
-func (s *StackConfig) GetClient() (*cf.CloudFormation, error) {
-	if s.client != nil {
-		return s.client, nil
+func (s *StackConfig) parseARN() error {
+	// Only do this once
+	if s.stackName != "" {
+		return nil
 	}
 
 	stackARN, err := arn.Parse(s.ARN)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing ARN: %q", err)
+		return fmt.Errorf("Error parsing ARN: %q", err)
 	}
 	s.parsedARN = stackARN
 
 	splitStr := strings.SplitN(stackARN.Resource, "/", 4)
 	if len(splitStr) != 3 {
-		return nil, fmt.Errorf("ARN resources doesn't match expected: %q", err)
+		return fmt.Errorf("ARN resources doesn't match expected: %q", err)
 	}
 	s.stackName = splitStr[1]
 
-	client, err := AWSClient(stackARN.Region)
+	return nil
+}
+
+func (s *StackConfig) GetClient() (*cf.CloudFormation, error) {
+	if err := s.parseARN(); err != nil {
+		return nil, err
+	}
+
+	if s.client != nil {
+		return s.client, nil
+	}
+
+	client, err := AWSClient(s.parsedARN.Region)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +134,7 @@ func LoadStacks(root string) (*StacksDB, error) {
 	return db, nil
 }
 
-func (s *StackConfig) GetTemplate() (string, error) {
+func (s *StackConfig) GetLiveTemplate() (string, error) {
 	client, err := s.GetClient()
 	if err != nil {
 		return "", err
@@ -169,7 +185,7 @@ func (s *StackConfig) Hydrate() error {
 	cur := live.Stacks[0]
 
 	if len(cur.Parameters) > 0 && s.Params == nil {
-		s.Params = map[string]interface{}{}
+		s.Params = map[string]string{}
 	}
 
 	for _, pair := range cur.Parameters {
@@ -182,12 +198,11 @@ func (s *StackConfig) Hydrate() error {
 }
 
 func (s StackConfig) Region() (string, error) {
-	stackARN, err := arn.Parse(s.ARN)
-	if err != nil {
-		return "", fmt.Errorf("Error parsing ARN: %q", err)
+	if err := s.parseARN(); err != nil {
+		return "", err
 	}
 
-	return stackARN.Region, nil
+	return s.parsedARN.Region, nil
 }
 
 func LoadStackFromFile(file string) (*StackConfig, error) {
@@ -226,4 +241,55 @@ func (s StackConfig) Location() string {
 	}
 
 	return filepath.Clean(path.Join("examples", s.Name+".yml"))
+}
+
+func (s StackConfig) GetLiveTemplateHash() (string, error) {
+	template, err := s.GetLiveTemplate()
+	if err != nil {
+		return "", err
+	}
+	liveTemplateHash := helpers.HashString(template)
+
+	return liveTemplateHash, nil
+}
+
+func (s StackConfig) GetDiskTemplateHash() (string, error) {
+	return helpers.HashFile(s.File)
+}
+
+func (s StackConfig) GetDiskTemplate() (string, error) {
+	f, err := os.Open(s.Source)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	data, err := ioutil.ReadAll(f)
+	if err != nil {
+		return "", err
+	}
+
+	return string(data), nil
+}
+
+func (s *StackConfig) StackName() string {
+	if err := s.parseARN(); err != nil {
+		return ""
+	}
+
+	return s.stackName
+}
+
+func (s *StackConfig) AWSParams() []*cloudformation.Parameter {
+	awsParams := []*cloudformation.Parameter{}
+
+	for k, v := range s.Params {
+		awsParams = append(awsParams, &cloudformation.Parameter{
+			// Use aws.String to clone and then take a pointer to the clone:
+			ParameterKey:   aws.String(k),
+			ParameterValue: aws.String(v),
+		})
+	}
+
+	return awsParams
 }
