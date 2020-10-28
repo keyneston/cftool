@@ -2,9 +2,7 @@ package config
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -16,6 +14,7 @@ import (
 	cf "github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/keyneston/cftool/awshelpers"
 	"github.com/keyneston/cftool/helpers"
+	"github.com/mitchellh/go-homedir"
 	"gopkg.in/yaml.v2"
 )
 
@@ -29,6 +28,9 @@ type StackConfig struct {
 	client    *cf.CloudFormation
 	parsedARN arn.ARN
 	stackName string
+
+	stacksDir string
+	cfRoot    string
 }
 
 func (s *StackConfig) parseARN() error {
@@ -77,61 +79,6 @@ func AWSClient(region string) (*cf.CloudFormation, error) {
 
 	srv := awshelpers.GetClient(region)
 	return srv, nil
-}
-
-func LoadStacksFromWD() (*StacksDB, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		log.Printf("Error getting cwd: %#v", err)
-		return nil, err
-	}
-
-	return LoadStacks(cwd)
-}
-
-func LoadStacks(root string) (*StacksDB, error) {
-	db := &StacksDB{}
-
-	filesToParse := []string{}
-	config := FindConfig()
-	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Don't re-parse the config file
-		if filepath.Base(path) == config {
-			return nil
-		}
-
-		ext := filepath.Ext(path)
-		if ext == ".yml" || ext == ".yaml" {
-			filesToParse = append(filesToParse, path)
-		}
-		return nil
-	})
-
-	for _, path := range filesToParse {
-		relativePath, err := filepath.Rel(root, path)
-		if err != nil {
-			return nil, err
-		}
-		// relativePath := "./" + path[len(root)+1:len(path)]
-		stack, err := LoadStackFromFile(relativePath)
-		switch err {
-		case nil:
-			break
-		case io.EOF:
-			log.Printf("Warning: file %q empty", relativePath)
-			continue
-		default:
-			return nil, err // TODO: collect errors here and return as a batch
-		}
-
-		db.AddStack(stack)
-	}
-
-	return db, nil
 }
 
 func (s *StackConfig) GetLiveTemplate() (string, error) {
@@ -253,12 +200,25 @@ func (s StackConfig) GetLiveTemplateHash() (string, error) {
 	return liveTemplateHash, nil
 }
 
+func (s StackConfig) GetDiskTemplateLocation() string {
+	long := filepath.Join(s.cfRoot, s.File)
+
+	expanded, err := homedir.Expand(long)
+	if err == nil {
+		// If we can expand ~ without error return it
+		return expanded
+	}
+
+	// otherwise just return what we have.
+	return long
+}
+
 func (s StackConfig) GetDiskTemplateHash() (string, error) {
-	return helpers.HashFile(s.File)
+	return helpers.HashFile(s.GetDiskTemplateLocation())
 }
 
 func (s StackConfig) GetDiskTemplate() (string, error) {
-	f, err := os.Open(s.File)
+	f, err := os.Open(s.GetDiskTemplateLocation())
 	if err != nil {
 		return "", err
 	}

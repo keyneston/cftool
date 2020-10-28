@@ -69,7 +69,7 @@ func (r *DiffTemplate) makeDiff(s *config.StackConfig) error {
 		FromDate: "unknown", // TODO: get this date
 
 		B:      strings.SplitAfter(diskTemplate, "\n"),
-		ToFile: s.File,
+		ToFile: s.GetDiskTemplateLocation(),
 		ToDate: time.Now().Format(time.RFC3339),
 
 		Context: int(r.Context),

@@ -2,3 +2,6 @@
 regions:
   - us-east-1
   - eu-west-2
+
+cloud_formation_root: "~/Code/src/github.com/GetStream/stream-puppet/cloudformation"
+stacks_dir: "./examples/"

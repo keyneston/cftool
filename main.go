@@ -42,7 +42,7 @@ func main() {
 		os.Exit(-1)
 	}
 
-	stacks, err := config.LoadStacksFromWD()
+	stacks, err := generalConfig.LoadStacks()
 	if err != nil {
 		log.Printf("Error loading stacks: %v", err)
 		os.Exit(-1)
