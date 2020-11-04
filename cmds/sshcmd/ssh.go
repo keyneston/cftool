@@ -23,8 +23,16 @@ func (*SSHcmd) Synopsis() string {
 }
 
 func (*SSHcmd) Usage() string {
-	return `ssh [<filter1>, <filter2>...]
-	Grab a host from a stack and ssh into it`
+	return `ssh [<filter1>, <filter2>...] [-- commands to ssh]
+	Grab a host from a stack and ssh into it
+
+	If a -- is given all additional flags will be passed to ssh.
+	e.g.
+
+
+	"cftool ssh myStack -- -v" => "ssh -v 192.0.2.0"
+
+	`
 }
 
 func (r *SSHcmd) SetFlags(f *flag.FlagSet) {

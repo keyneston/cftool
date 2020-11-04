@@ -37,6 +37,9 @@ Gets the status of the managed stacks.
 * `cftool diff-template`
 	Grabs the live template, and gives a diff against the local version.
 
+* `cftool ssh [<filter1>]`
+	Grabs an IP from the filtered stack and execs ssh to the box.
+
 ## Local Config
 
 * `config.yaml`
