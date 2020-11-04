@@ -8,28 +8,53 @@ import (
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	cf "github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
-var clientCache = &sync.Map{}
+var (
+	cfClientCache  = &sync.Map{}
+	asgClientCache = &sync.Map{}
+	ec2ClientCache = &sync.Map{}
+	sessionCache   = &sync.Map{}
+)
 
-func GetClient(region string) *cloudformation.CloudFormation {
-	c, ok := clientCache.Load(region)
+func GetSession(region string) *session.Session {
+	if region == "" {
+		region = "us-east-1"
+	}
+
+	c, ok := sessionCache.Load(region)
 	if ok {
-		return c.(*cloudformation.CloudFormation)
+		return c.(*session.Session)
 	}
 
 	sess := session.Must(session.NewSession())
-	config := request.WithRetryer(aws.NewConfig().WithRegion(region), client.DefaultRetryer{
+
+	c, _ = sessionCache.LoadOrStore(region, sess)
+	return c.(*session.Session)
+}
+
+func config(region string) *aws.Config {
+	return request.WithRetryer(aws.NewConfig().WithRegion(region), client.DefaultRetryer{
 		NumMaxRetries:    10,
 		MinRetryDelay:    5 * time.Millisecond,
 		MinThrottleDelay: 20 * time.Millisecond,
 		MaxRetryDelay:    5 * time.Second,
 		MaxThrottleDelay: 5 * time.Second,
 	})
-	c = cf.New(sess, config)
+}
 
-	c, _ = clientCache.LoadOrStore(region, c)
-	return c.(*cloudformation.CloudFormation)
+func GetCloudFormationClient(region string) *cloudformation.CloudFormation {
+	return cf.New(GetSession(region), config(region))
+}
+
+func GetASGClient(region string) *autoscaling.AutoScaling {
+	return autoscaling.New(GetSession(region), config(region))
+}
+
+func GetEC2Client(region string) *ec2.EC2 {
+	return ec2.New(GetSession(region), config(region))
 }

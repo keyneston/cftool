@@ -140,10 +140,7 @@ func (r *FetchStacks) createStacks(stacks []*config.StackConfig) error {
 func (r *FetchStacks) getRegion(region string) ([]*config.StackConfig, error) {
 	log.Printf("INFO: Fetching %q", region) // TODO: switch to proper logger
 
-	client, err := config.AWSClient(region)
-	if err != nil {
-		return nil, err
-	}
+	client := awshelpers.GetCloudFormationClient(region)
 
 	stacks := []*config.StackConfig{}
 	var next *string

@@ -1,8 +1,10 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -10,8 +12,10 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	cf "github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/keyneston/cftool/awshelpers"
 	"github.com/keyneston/cftool/helpers"
 	"github.com/mitchellh/go-homedir"
@@ -63,22 +67,19 @@ func (s *StackConfig) GetClient() (*cf.CloudFormation, error) {
 		return s.client, nil
 	}
 
-	client, err := AWSClient(s.parsedARN.Region)
-	if err != nil {
-		return nil, err
-	}
+	region := s.parsedARN.Region
+	s.client = awshelpers.GetCloudFormationClient(region)
 
-	s.client = client
 	return s.client, nil
 }
 
-func AWSClient(region string) (*cf.CloudFormation, error) {
-	if region == "" {
-		region = "us-east-1"
+func (s *StackConfig) GetASGClient() (*autoscaling.AutoScaling, error) {
+	if err := s.parseARN(); err != nil {
+		return nil, err
 	}
 
-	srv := awshelpers.GetClient(region)
-	return srv, nil
+	region := s.parsedARN.Region
+	return awshelpers.GetASGClient(region), nil
 }
 
 func (s *StackConfig) GetLiveTemplate() (string, error) {
@@ -142,6 +143,47 @@ func (s *StackConfig) Hydrate() error {
 	}
 
 	return nil
+}
+
+func (s StackConfig) FetchServers() ([]string, error) {
+	client, err := s.GetClient()
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := client.DescribeStackResources(&cloudformation.DescribeStackResourcesInput{
+		StackName: &s.stackName,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	asgs := []string{}
+
+	for _, obj := range out.StackResources {
+		if obj.ResourceType == nil {
+			continue
+		}
+
+		switch *obj.ResourceType {
+		case "AWS::AutoScaling::AutoScalingGroup":
+			asgs = append(asgs, *obj.PhysicalResourceId)
+		default:
+			log.Printf("Skipping resource type %v", *obj.ResourceType)
+		}
+	}
+
+	servers := []string{}
+	for _, asg := range asgs {
+		res, err := s.getIPsFromASG(context.TODO(), asg)
+		if err != nil {
+			return nil, err
+		}
+
+		servers = append(servers, res...)
+	}
+
+	return servers, nil
 }
 
 func (s StackConfig) Region() (string, error) {
@@ -252,4 +294,50 @@ func (s *StackConfig) AWSParams() []*cloudformation.Parameter {
 	}
 
 	return awsParams
+}
+
+func (s *StackConfig) getIPsFromASG(ctx context.Context, asgNames ...string) ([]string, error) {
+	input := &autoscaling.DescribeAutoScalingGroupsInput{}
+	for _, asgName := range asgNames {
+		input.AutoScalingGroupNames = append(input.AutoScalingGroupNames, &asgName)
+	}
+
+	asgClient, err := s.GetASGClient()
+	if err != nil {
+		return nil, err
+	}
+
+	instanceIds := []*string{}
+
+	asgClient.DescribeAutoScalingGroupsPagesWithContext(ctx, input, func(output *autoscaling.DescribeAutoScalingGroupsOutput, lastPage bool) bool {
+		for _, asg := range output.AutoScalingGroups {
+			for _, instance := range asg.Instances {
+				instanceIds = append(instanceIds, instance.InstanceId)
+			}
+		}
+		return true
+	})
+
+	instancesInput := ec2.DescribeInstancesInput{
+		InstanceIds: instanceIds,
+	}
+
+	servers := []string{}
+	awshelpers.GetEC2Client(s.parsedARN.Region).DescribeInstancesPagesWithContext(
+		ctx,
+		&instancesInput,
+		func(output *ec2.DescribeInstancesOutput, lastPage bool) bool {
+			for _, resv := range output.Reservations {
+				for _, instance := range resv.Instances {
+					if instance.PrivateIpAddress == nil {
+						continue
+					}
+
+					servers = append(servers, *instance.PrivateIpAddress)
+				}
+			}
+			return true
+		})
+
+	return servers, nil
 }

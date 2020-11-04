@@ -127,7 +127,7 @@ func (r *DiffStacks) waitForResult(ctx context.Context, wg *sync.WaitGroup, errC
 		return
 	}
 
-	client := awshelpers.GetClient(a.Region)
+	client := awshelpers.GetCloudFormationClient(a.Region)
 	input := &cloudformation.DescribeChangeSetInput{
 		ChangeSetName: &id,
 	}
@@ -197,7 +197,7 @@ func (r *DiffStacks) createChangeSet(s *config.StackConfig) (string, error) {
 		return "", err
 	}
 
-	client := awshelpers.GetClient(region)
+	client := awshelpers.GetCloudFormationClient(region)
 	res, err := client.CreateChangeSet(changeSetInput)
 	if err != nil {
 		return "", err

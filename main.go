@@ -13,6 +13,7 @@ import (
 	"github.com/keyneston/cftool/cmds/diff"
 	"github.com/keyneston/cftool/cmds/difftemplate"
 	"github.com/keyneston/cftool/cmds/fetch"
+	"github.com/keyneston/cftool/cmds/sshcmd"
 	"github.com/keyneston/cftool/cmds/status"
 	"github.com/keyneston/cftool/config"
 )
@@ -29,6 +30,7 @@ func registerSubcommands(general *config.GeneralConfig, stacks *config.StacksDB)
 	subcommands.Register(&configcmd.PrintConfig{StacksDB: stacks, General: general}, "")
 	subcommands.Register(&diff.DiffStacks{StacksDB: stacks, General: general}, "")
 	subcommands.Register(&difftemplate.DiffTemplate{StacksDB: stacks, General: general}, "")
+	subcommands.Register(&sshcmd.SSHcmd{StacksDB: stacks, General: general}, "")
 }
 
 func main() {
