@@ -16,7 +16,7 @@ import (
 	"github.com/google/subcommands"
 	"github.com/keyneston/cftool/awshelpers"
 	"github.com/keyneston/cftool/config"
-	"github.com/keyneston/tabslib"
+	"github.com/keyneston/cftool/helpers"
 )
 
 const Update = "UPDATE"
@@ -56,8 +56,7 @@ func (r *DiffStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 
 	stacks, err := r.StacksDB.Filter(f.Args()...)
 	if err != nil {
-		log.Printf("Error: %v", err)
-		return subcommands.ExitFailure
+		return helpers.ExitErr(err)
 	}
 
 	changeSets := []string{}
@@ -66,8 +65,7 @@ func (r *DiffStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 		log.Printf("Diffing: %s", s.Name)
 		id, err := r.createChangeSet(s)
 		if err != nil {
-			log.Printf("Error: %v", err)
-			return subcommands.ExitFailure
+			return helpers.ExitErr(err)
 		}
 		if id == "" {
 			// If id is empty and there is no error then the there is nothing
@@ -79,7 +77,6 @@ func (r *DiffStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 	}
 
 	if err := r.getResults(ctx, changeSets); err != nil {
-		log.Printf("Error: %v", err)
 		return subcommands.ExitFailure
 	}
 
@@ -105,10 +102,12 @@ func (r *DiffStacks) getResults(ctx context.Context, ids []string) error {
 		log.Printf("Error: %v", err)
 	}
 
+	changes := []ChangeEntry{}
 	for result := range resultCh {
-		log.Printf("Result: %v", result)
+		changes = append(changes, createChanges(result)...)
 	}
 
+	printChanges(changes)
 	return nil
 }
 
@@ -131,8 +130,6 @@ func (r *DiffStacks) waitForResult(ctx context.Context, wg *sync.WaitGroup, errC
 	input := &cloudformation.DescribeChangeSetInput{
 		ChangeSetName: &id,
 	}
-
-	log.Printf("%v", tabslib.PrettyString(input))
 
 	log.Printf("Waiting for changeset to calculate")
 	if err := client.WaitUntilChangeSetCreateCompleteWithContext(ctx, input,
