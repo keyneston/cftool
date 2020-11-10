@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"regexp"
 )
 
@@ -20,6 +21,11 @@ func (s *StacksDB) AddStack(stacks ...*StackConfig) {
 	}
 
 	for _, stack := range stacks {
+		if _, ok := s.byARN[stack.Name]; ok {
+			log.Printf("Warning: Already added %q skipping", stack.Name)
+			continue
+		}
+
 		if stack.Name != "unknown" && stack.Name != "" {
 			s.byName[stack.Name] = stack
 		}

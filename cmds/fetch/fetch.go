@@ -83,7 +83,6 @@ func (r *FetchStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfa
 		log.Printf("Error: %v", err)
 		return subcommands.ExitFailure
 	}
-	log.Fatal("done")
 
 	if err := r.createStacks(newStacks); err != nil {
 		log.Printf("Error: %v", err)
@@ -120,6 +119,7 @@ func (r *FetchStacks) updateStacks(stacks []*config.StackConfig) error {
 }
 
 func (r *FetchStacks) createStacks(stacks []*config.StackConfig) error {
+	log.Printf("INFO: creating %d stacks", len(stacks))
 	for _, err := range hydrateStacks(stacks) {
 		if err != nil {
 			return err
@@ -143,21 +143,17 @@ func (r *FetchStacks) getRegion(region string) ([]*config.StackConfig, error) {
 	client := awshelpers.GetCloudFormationClient(region)
 
 	stacks := []*config.StackConfig{}
-	var next *string
 
-	for {
-		res, err := client.ListStacks(&cloudformation.ListStacksInput{
-			NextToken: next,
-		})
-		if err != nil {
-			return nil, err
-		}
-		stacks = append(stacks, convertToLocal(res.StackSummaries)...)
+	input := &cloudformation.ListStacksInput{}
+	if err := client.ListStacksPagesWithContext(
+		context.TODO(),
+		input,
+		func(res *cloudformation.ListStacksOutput, more bool) bool {
+			stacks = append(stacks, convertToLocal(res.StackSummaries)...)
 
-		if res.NextToken == nil {
-			break
-		}
-		next = res.NextToken
+			return more
+		}); err != nil {
+		return nil, err
 	}
 
 	return stacks, nil

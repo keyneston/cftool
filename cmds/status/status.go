@@ -32,6 +32,8 @@ func (r *StatusStacks) SetFlags(f *flag.FlagSet) {
 }
 
 func (r *StatusStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+	r.General.Debug("Starting StatusStacks.Execute()")
+
 	entries := []StatusEntry{}
 	errors := []error{}
 
@@ -42,6 +44,7 @@ func (r *StatusStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interf
 		log.Printf("Error: %v", err)
 		return subcommands.ExitFailure
 	}
+	r.General.Debug("debug: got statcks %#v", stacks)
 
 	results := make(chan StatusEntry, r.StacksDB.Len())
 	errCh := make(chan error, r.StacksDB.Len())

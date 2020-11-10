@@ -36,6 +36,10 @@ func registerSubcommands(general *config.GeneralConfig, stacks *config.StacksDB)
 func main() {
 	ctx := context.Background()
 	rand.Seed(time.Now().UnixNano())
+
+	shouldDebug := false
+
+	flag.BoolVar(&shouldDebug, "debug", shouldDebug, "enable debug output")
 	flag.Parse()
 
 	generalConfig, err := config.LoadConfig()
@@ -43,6 +47,8 @@ func main() {
 		log.Printf("Error loading config: %v", err)
 		os.Exit(-1)
 	}
+
+	generalConfig.ShouldDebug = shouldDebug
 
 	stacks, err := generalConfig.LoadStacks()
 	if err != nil {

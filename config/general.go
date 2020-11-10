@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/mitchellh/go-homedir"
 	"gopkg.in/yaml.v2"
 )
 
@@ -19,6 +20,14 @@ type GeneralConfig struct {
 
 	CloudFormationRoot string `json:"cloud_formation_root" yaml:"cloud_formation_root"`
 	StacksDir          string `json:"stacks_dir" yaml:"stacks_dir"`
+
+	ShouldDebug bool `json:"debug" yaml:"debug"`
+}
+
+func (g GeneralConfig) Debug(msg string, vars ...interface{}) {
+	if g.ShouldDebug {
+		log.Printf("Debug: "+msg, vars...)
+	}
 }
 
 func LoadConfig() (*GeneralConfig, error) {
@@ -37,8 +46,18 @@ func LoadConfig() (*GeneralConfig, error) {
 	if generalConfig.CloudFormationRoot == "" {
 		return nil, fmt.Errorf("`cloud_formation_root` is empty")
 	}
-	if generalConfig.CloudFormationRoot == "" {
+	if generalConfig.StacksDir == "" {
 		return nil, fmt.Errorf("`stacks_dir` is empty")
+	}
+
+	generalConfig.CloudFormationRoot, err = homedir.Expand(generalConfig.CloudFormationRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	generalConfig.StacksDir, err = homedir.Expand(generalConfig.StacksDir)
+	if err != nil {
+		return nil, err
 	}
 
 	return generalConfig, nil

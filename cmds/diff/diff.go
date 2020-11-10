@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -29,7 +30,8 @@ type DiffStacks struct {
 	General  *config.GeneralConfig
 	StacksDB *config.StacksDB
 
-	Timeout time.Duration
+	Timeout    time.Duration
+	PlanOutput string
 }
 
 func (*DiffStacks) Name() string { return "diff" }
@@ -44,6 +46,8 @@ func (*DiffStacks) Usage() string {
 
 func (r *DiffStacks) SetFlags(f *flag.FlagSet) {
 	f.DurationVar(&r.Timeout, "t", time.Second*60, "timeout for waiting for results")
+	f.StringVar(&r.PlanOutput, "o", "plan.json", "name of file to output the plan ids to")
+	f.StringVar(&r.PlanOutput, "plan", "plan.json", "name of file to output the plan ids to")
 }
 
 func (r *DiffStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
@@ -53,6 +57,11 @@ func (r *DiffStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfac
 	}
 	ctx, cancel := context.WithTimeout(ctx, r.Timeout)
 	defer cancel()
+
+	if _, err := os.Stat(r.PlanOutput); err == nil {
+		log.Printf("Error: Plan [%q] already exists, exiting", r.PlanOutput)
+		return subcommands.ExitFailure
+	}
 
 	stacks, err := r.StacksDB.Filter(f.Args()...)
 	if err != nil {

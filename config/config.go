@@ -18,7 +18,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/keyneston/cftool/awshelpers"
 	"github.com/keyneston/cftool/helpers"
-	"github.com/mitchellh/go-homedir"
 	"gopkg.in/yaml.v2"
 )
 
@@ -212,7 +211,7 @@ func LoadStackFromFile(file string) (*StackConfig, error) {
 }
 
 func (s *StackConfig) Save(location string) error {
-	f, err := os.OpenFile(location, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o655)
+	f, err := os.OpenFile(location, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
 	}
@@ -229,7 +228,7 @@ func (s StackConfig) Location() string {
 		return s.Source
 	}
 
-	return filepath.Clean(path.Join("examples", s.Name+".yml"))
+	return filepath.Clean(path.Join("examples", s.parsedARN.Region, s.Name+".yml"))
 }
 
 func (s StackConfig) GetLiveTemplateHash() (string, error) {
@@ -243,16 +242,7 @@ func (s StackConfig) GetLiveTemplateHash() (string, error) {
 }
 
 func (s StackConfig) GetDiskTemplateLocation() string {
-	long := filepath.Join(s.cfRoot, s.File)
-
-	expanded, err := homedir.Expand(long)
-	if err == nil {
-		// If we can expand ~ without error return it
-		return expanded
-	}
-
-	// otherwise just return what we have.
-	return long
+	return filepath.Join(s.cfRoot, s.File)
 }
 
 func (s StackConfig) GetDiskTemplateHash() (string, error) {
