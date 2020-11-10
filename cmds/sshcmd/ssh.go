@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"log"
+	"math/rand"
 	"os"
 	"strings"
 	"syscall"
@@ -15,6 +16,9 @@ import (
 type SSHcmd struct {
 	General  *config.GeneralConfig
 	StacksDB *config.StacksDB
+
+	ServerOffset uint
+	RandomServer bool
 }
 
 func (*SSHcmd) Name() string { return "ssh" }
@@ -31,11 +35,12 @@ func (*SSHcmd) Usage() string {
 
 
 	"cftool ssh myStack -- -v" => "ssh -v 192.0.2.0"
-
 	`
 }
 
 func (r *SSHcmd) SetFlags(f *flag.FlagSet) {
+	f.BoolVar(&r.RandomServer, "r", false, "Select a server at random")
+	f.UintVar(&r.ServerOffset, "o", 0, "Pick server N")
 }
 
 func (r *SSHcmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
@@ -76,11 +81,19 @@ func (r *SSHcmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{})
 		return subcommands.ExitFailure
 	}
 
+	if r.RandomServer {
+		r.ServerOffset = uint(rand.Uint64())
+	}
+	offset := r.ServerOffset % uint(len(allServers))
+
+	r.General.Debug("Picking server %d", offset)
+	server := allServers[offset]
+
 	bin := "/usr/bin/ssh"
 	sshArgs := []string{bin}
 	sshArgs = append(sshArgs, additionalSSHArgs...)
-	sshArgs = append(sshArgs, allServers[0])
-	log.Printf("exec %v", strings.Join(sshArgs, " "))
+	sshArgs = append(sshArgs, server)
+	r.General.Debug("exec %v", strings.Join(sshArgs, " "))
 
 	if err := syscall.Exec(bin, sshArgs, os.Environ()); err != nil {
 		log.Printf("Error: %v", err)
