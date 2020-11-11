@@ -3,9 +3,11 @@ package sshcmd
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"math/rand"
 	"os"
+	"os/exec"
 	"strings"
 	"syscall"
 
@@ -19,6 +21,7 @@ type SSHcmd struct {
 
 	ServerOffset uint
 	RandomServer bool
+	Pdsh         bool
 }
 
 func (*SSHcmd) Name() string { return "ssh" }
@@ -41,6 +44,7 @@ func (*SSHcmd) Usage() string {
 func (r *SSHcmd) SetFlags(f *flag.FlagSet) {
 	f.BoolVar(&r.RandomServer, "r", false, "Select a server at random")
 	f.UintVar(&r.ServerOffset, "o", 0, "Pick server N")
+	f.BoolVar(&r.Pdsh, "p", false, "Run with PDSH for parallel")
 }
 
 func (r *SSHcmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
@@ -89,16 +93,45 @@ func (r *SSHcmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{})
 	r.General.Debug("Picking server %d", offset)
 	server := allServers[offset]
 
-	bin := "/usr/bin/ssh"
+	if r.Pdsh {
+		err = r.ExecPDSH(allServers, additionalSSHArgs)
+	} else {
+		err = r.ExecSSH(server, additionalSSHArgs)
+	}
+
+	log.Printf("Error: %v", err)
+
+	return subcommands.ExitSuccess
+}
+
+func (r SSHcmd) Exec(command string, args []string) error {
+	bin, err := exec.LookPath(command)
+	if err != nil {
+		return fmt.Errorf("Can't find binary %q: %v", command, err)
+	}
+
 	sshArgs := []string{bin}
-	sshArgs = append(sshArgs, additionalSSHArgs...)
-	sshArgs = append(sshArgs, server)
+	sshArgs = append(sshArgs, args...)
 	r.General.Debug("exec %v", strings.Join(sshArgs, " "))
 
 	if err := syscall.Exec(bin, sshArgs, os.Environ()); err != nil {
-		log.Printf("Error: %v", err)
-		return subcommands.ExitFailure
+		return err
 	}
 
-	return subcommands.ExitSuccess
+	return nil
+}
+
+func (r SSHcmd) ExecPDSH(servers, args []string) error {
+	combinedServers := strings.Join(servers, ",")
+
+	command := append([]string{}, "-w "+combinedServers)
+	command = append(command, args...)
+
+	return r.Exec("pdsh", command)
+}
+
+func (r SSHcmd) ExecSSH(server string, args []string) error {
+	command := append([]string{}, server)
+	command = append(command, args...)
+	return r.Exec("ssh", command)
 }
