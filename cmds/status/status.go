@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"sync"
 
@@ -41,7 +40,7 @@ func (r *StatusStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interf
 
 	stacks, err := r.StacksDB.Filter(f.Args()...)
 	if err != nil {
-		log.Printf("Error: %v", err)
+		r.General.Log.Errorf("%v", err)
 		return subcommands.ExitFailure
 	}
 	r.General.Log.Debug("debug: got statcks %#v", stacks)
@@ -62,7 +61,7 @@ func (r *StatusStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interf
 	}
 
 	for err := range errCh {
-		log.Printf("Error: %v", err)
+		r.General.Log.Errorf("%v", err)
 		errors = append(errors, err)
 	}
 
@@ -82,7 +81,7 @@ func (r *StatusStacks) getEntry(wg *sync.WaitGroup, results chan<- StatusEntry, 
 	awshelpers.Ratelimit(context.TODO(), region, func() {
 		live, err := s.GetLive()
 		if err != nil {
-			log.Printf("Error: %v", err)
+			r.General.Log.Errorf("%v", err)
 			errors <- err
 			return
 		}

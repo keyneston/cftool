@@ -18,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/keyneston/cftool/awshelpers"
 	"github.com/keyneston/cftool/helpers"
+	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 )
 
@@ -36,6 +37,7 @@ type StackConfig struct {
 
 	cacheDir string
 	cfRoot   string
+	log      *logrus.Logger
 }
 
 func (s *StackConfig) parseARN() error {
@@ -180,8 +182,7 @@ func (s StackConfig) HydrateServers() error {
 		case "AWS::AutoScaling::AutoScalingGroup":
 			asgs = append(asgs, *obj.PhysicalResourceId)
 		default:
-			// TODO: use real log level thing here
-			// log.Printf("Skipping resource type %v", *obj.ResourceType)
+			s.log.Debugf("Skipping resource type %v", *obj.ResourceType)
 		}
 	}
 
@@ -208,7 +209,7 @@ func (s StackConfig) Region() (string, error) {
 }
 
 func (s *StackConfig) Save(location string) error {
-	log.Printf("Saving to %v", location)
+	s.log.Debugf("Saving to %v", location)
 	dir := filepath.Dir(location)
 	if dir == "" {
 		return fmt.Errorf("Invalid directory to save into: %v", dir)

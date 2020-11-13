@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -103,7 +102,7 @@ func (g *GeneralConfig) LoadStacks() (*StacksDB, error) {
 		case nil:
 			break
 		case io.EOF:
-			log.Printf("Warning: file %q empty", relativePath)
+			g.Log.Warningf("file %q empty", relativePath)
 			continue
 		default:
 			return nil, err // TODO: collect errors here and return as a batch
@@ -122,6 +121,7 @@ func (g GeneralConfig) NewStack(name, arn string) *StackConfig {
 
 		cacheDir: g.CacheDir,
 		cfRoot:   g.CloudFormationRoot,
+		log:      g.Log,
 	}
 }
 
@@ -141,6 +141,7 @@ func (g GeneralConfig) LoadStackFromFile(file string) (*StackConfig, error) {
 
 	stack.cacheDir = g.CacheDir
 	stack.cfRoot = g.CloudFormationRoot
+	stack.log = g.Log
 
 	return stack, nil
 }
