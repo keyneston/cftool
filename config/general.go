@@ -7,7 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/keyneston/cftool/helpers"
 	"github.com/mitchellh/go-homedir"
+	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 )
 
@@ -19,22 +21,19 @@ type GeneralConfig struct {
 	Source  string   `json:"source" yaml:"-"`
 
 	CloudFormationRoot string `json:"cloud_formation_root" yaml:"cloud_formation_root"`
-	StacksDir          string `json:"stacks_dir" yaml:"stacks_dir"`
+	CacheDir           string `json:"cache" yaml:"cache"`
 
-	ShouldDebug bool `json:"debug" yaml:"debug"`
-}
-
-func (g GeneralConfig) Debug(msg string, vars ...interface{}) {
-	if g.ShouldDebug {
-		log.Printf("Debug: "+msg, vars...)
-	}
+	LogLevel logrus.Level   `json:"log_level" yaml:"log_level"`
+	Log      *logrus.Logger `json:"-" yaml:"-"`
 }
 
 func LoadConfig() (*GeneralConfig, error) {
-	generalConfig := &GeneralConfig{}
+	generalConfig := &GeneralConfig{
+		Log: logrus.New(),
+	}
 	generalConfig.Source = FindConfig()
 
-	f, err := os.Open(generalConfig.Source)
+	f, err := os.Open(helpers.Expand(generalConfig.Source))
 	if err != nil {
 		return nil, err
 	}
@@ -46,8 +45,8 @@ func LoadConfig() (*GeneralConfig, error) {
 	if generalConfig.CloudFormationRoot == "" {
 		return nil, fmt.Errorf("`cloud_formation_root` is empty")
 	}
-	if generalConfig.StacksDir == "" {
-		return nil, fmt.Errorf("`stacks_dir` is empty")
+	if generalConfig.CacheDir == "" {
+		generalConfig.CacheDir = helpers.Expand(DefaultCacheDir)
 	}
 
 	generalConfig.CloudFormationRoot, err = homedir.Expand(generalConfig.CloudFormationRoot)
@@ -55,30 +54,25 @@ func LoadConfig() (*GeneralConfig, error) {
 		return nil, err
 	}
 
-	generalConfig.StacksDir, err = homedir.Expand(generalConfig.StacksDir)
+	generalConfig.CacheDir, err = homedir.Expand(generalConfig.CacheDir)
 	if err != nil {
 		return nil, err
 	}
 
+	generalConfig.Log.SetLevel(generalConfig.LogLevel)
+
 	return generalConfig, nil
 }
 
-func FindConfig() string {
-	env := os.Getenv("CFTOOLRC")
-	if env != "" {
-		return env
-	}
-
-	return "config.yml"
+func (g *GeneralConfig) SetLevel(level logrus.Level) {
+	g.LogLevel = level
+	g.Log.SetLevel(level)
 }
 
 func (g *GeneralConfig) LoadStacks() (*StacksDB, error) {
 	db := &StacksDB{}
 
-	root := g.StacksDir
-	if root == "" {
-		return nil, fmt.Errorf("No `stacks_dir` configured in %q", FindConfig())
-	}
+	root := g.CacheDir
 
 	filesToParse := []string{}
 	config := FindConfig()
@@ -104,7 +98,7 @@ func (g *GeneralConfig) LoadStacks() (*StacksDB, error) {
 		if err != nil {
 			return nil, err
 		}
-		stack, err := LoadStackFromFile(path)
+		stack, err := g.LoadStackFromFile(path)
 		switch err {
 		case nil:
 			break
@@ -115,11 +109,38 @@ func (g *GeneralConfig) LoadStacks() (*StacksDB, error) {
 			return nil, err // TODO: collect errors here and return as a batch
 		}
 
-		stack.stacksDir = g.StacksDir
-		stack.cfRoot = g.CloudFormationRoot
-
 		db.AddStack(stack)
 	}
 
 	return db, nil
+}
+
+func (g GeneralConfig) NewStack(name, arn string) *StackConfig {
+	return &StackConfig{
+		Name: name,
+		ARN:  arn,
+
+		cacheDir: g.CacheDir,
+		cfRoot:   g.CloudFormationRoot,
+	}
+}
+
+func (g GeneralConfig) LoadStackFromFile(file string) (*StackConfig, error) {
+	stack := &StackConfig{}
+	stack.Source = file
+
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	if err := yaml.NewDecoder(f).Decode(&stack); err != nil {
+		return nil, err
+	}
+
+	stack.cacheDir = g.CacheDir
+	stack.cfRoot = g.CloudFormationRoot
+
+	return stack, nil
 }

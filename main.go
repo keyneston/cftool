@@ -16,6 +16,7 @@ import (
 	"github.com/keyneston/cftool/cmds/sshcmd"
 	"github.com/keyneston/cftool/cmds/status"
 	"github.com/keyneston/cftool/config"
+	"github.com/sirupsen/logrus"
 )
 
 func registerSubcommands(general *config.GeneralConfig, stacks *config.StacksDB) {
@@ -48,7 +49,10 @@ func main() {
 		os.Exit(-1)
 	}
 
-	generalConfig.ShouldDebug = shouldDebug
+	if shouldDebug {
+		generalConfig.SetLevel(logrus.DebugLevel)
+		// TODO: set it to include line numbers
+	}
 
 	stacks, err := generalConfig.LoadStacks()
 	if err != nil {

@@ -22,18 +22,20 @@ import (
 )
 
 type StackConfig struct {
-	Name   string            `json:"name"   yaml:"name"`
-	ARN    string            `json:"arn"    yaml:"arn"`
-	File   string            `json:"file"   yaml:"file"`
-	Params map[string]string `json:"params" yaml:"params"`
-	Source string            `json:"source" yaml:"-"`
+	Name     string                       `json:"name"   yaml:"name"`
+	ARN      string                       `json:"arn"    yaml:"arn"`
+	File     string                       `json:"file"   yaml:"file"`
+	Params   map[string]string            `json:"params" yaml:"params"`
+	Servers  map[string]*ServerCacheEntry `json:"servers" yaml:"servers"`
+	Source   string                       `json:"source" yaml:"-"`
+	Hydrated bool                         `json:"-" yaml:"-"`
 
 	client    *cf.CloudFormation
 	parsedARN arn.ARN
 	stackName string
 
-	stacksDir string
-	cfRoot    string
+	cacheDir string
+	cfRoot   string
 }
 
 func (s *StackConfig) parseARN() error {
@@ -141,20 +143,30 @@ func (s *StackConfig) Hydrate() error {
 		}
 	}
 
+	if err := s.HydrateServers(); err != nil {
+		return err
+	}
+
+	s.Hydrated = true
+
 	return nil
 }
 
-func (s StackConfig) FetchServers() ([]string, error) {
+func (s StackConfig) HydrateServers() error {
+	if s.Servers == nil {
+		s.Servers = map[string]*ServerCacheEntry{}
+	}
+
 	client, err := s.GetClient()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	out, err := client.DescribeStackResources(&cloudformation.DescribeStackResourcesInput{
 		StackName: &s.stackName,
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	asgs := []string{}
@@ -168,21 +180,23 @@ func (s StackConfig) FetchServers() ([]string, error) {
 		case "AWS::AutoScaling::AutoScalingGroup":
 			asgs = append(asgs, *obj.PhysicalResourceId)
 		default:
-			log.Printf("Skipping resource type %v", *obj.ResourceType)
+			// TODO: use real log level thing here
+			// log.Printf("Skipping resource type %v", *obj.ResourceType)
 		}
 	}
 
-	servers := []string{}
 	for _, asg := range asgs {
-		res, err := s.getIPsFromASG(context.TODO(), asg)
+		res, err := s.getServerCacheEntriesFromASG(context.TODO(), asg)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
-		servers = append(servers, res...)
+		for _, r := range res {
+			s.Servers[r.ARN] = r
+		}
 	}
 
-	return servers, nil
+	return nil
 }
 
 func (s StackConfig) Region() (string, error) {
@@ -193,24 +207,17 @@ func (s StackConfig) Region() (string, error) {
 	return s.parsedARN.Region, nil
 }
 
-func LoadStackFromFile(file string) (*StackConfig, error) {
-	stack := &StackConfig{}
-	stack.Source = file
-
-	f, err := os.Open(file)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	if err := yaml.NewDecoder(f).Decode(&stack); err != nil {
-		return nil, err
-	}
-
-	return stack, nil
-}
-
 func (s *StackConfig) Save(location string) error {
+	log.Printf("Saving to %v", location)
+	dir := filepath.Dir(location)
+	if dir == "" {
+		return fmt.Errorf("Invalid directory to save into: %v", dir)
+	}
+
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+
 	f, err := os.OpenFile(location, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
@@ -228,7 +235,11 @@ func (s StackConfig) Location() string {
 		return s.Source
 	}
 
-	return filepath.Clean(path.Join("examples", s.parsedARN.Region, s.Name+".yml"))
+	if s.cacheDir == "" {
+		log.Fatalf("CacheDir not set: %#v", s)
+	}
+
+	return filepath.Clean(path.Join(s.cacheDir, s.parsedARN.Region, s.Name+".yml"))
 }
 
 func (s StackConfig) GetLiveTemplateHash() (string, error) {
@@ -286,7 +297,7 @@ func (s *StackConfig) AWSParams() []*cloudformation.Parameter {
 	return awsParams
 }
 
-func (s *StackConfig) getIPsFromASG(ctx context.Context, asgNames ...string) ([]string, error) {
+func (s *StackConfig) getServerCacheEntriesFromASG(ctx context.Context, asgNames ...string) ([]*ServerCacheEntry, error) {
 	input := &autoscaling.DescribeAutoScalingGroupsInput{}
 	for _, asgName := range asgNames {
 		input.AutoScalingGroupNames = append(input.AutoScalingGroupNames, &asgName)
@@ -312,22 +323,33 @@ func (s *StackConfig) getIPsFromASG(ctx context.Context, asgNames ...string) ([]
 		InstanceIds: instanceIds,
 	}
 
-	servers := []string{}
+	servers := []*ServerCacheEntry{}
 	awshelpers.GetEC2Client(s.parsedARN.Region).DescribeInstancesPagesWithContext(
 		ctx,
 		&instancesInput,
 		func(output *ec2.DescribeInstancesOutput, lastPage bool) bool {
 			for _, resv := range output.Reservations {
 				for _, instance := range resv.Instances {
-					if instance.PrivateIpAddress == nil {
-						continue
-					}
-
-					servers = append(servers, *instance.PrivateIpAddress)
+					servers = append(servers, &ServerCacheEntry{
+						PrivateIP:  strPointer(instance.PrivateIpAddress),
+						PublicIP:   strPointer(instance.PublicIpAddress),
+						PublicDNS:  strPointer(instance.PublicDnsName),
+						PrivateDNS: strPointer(instance.PrivateDnsName),
+						VPCID:      strPointer(instance.VpcId),
+						ARN:        strPointer(instance.InstanceId),
+					})
 				}
 			}
 			return true
 		})
 
 	return servers, nil
+}
+
+func strPointer(in *string) string {
+	if in == nil {
+		return ""
+	}
+
+	return *in
 }

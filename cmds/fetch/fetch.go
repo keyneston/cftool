@@ -8,6 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/google/subcommands"
+	"github.com/hashicorp/go-multierror"
 	"github.com/keyneston/cftool/awshelpers"
 	"github.com/keyneston/cftool/config"
 	"golang.org/x/sync/semaphore"
@@ -74,6 +75,7 @@ func (r *FetchStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfa
 		if filtered != nil && onDisk == nil {
 			newStacks = append(newStacks, filtered)
 		} else if onDisk != nil {
+			log.Printf("Adding %v to updatedStacks[%d]", onDisk.StackName(), len(updateStacks))
 			updateStacks = append(updateStacks, onDisk) // pass the onDisk version since it has some data we want (Source)
 		}
 	}
@@ -94,16 +96,16 @@ func (r *FetchStacks) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfa
 
 func (r *FetchStacks) updateStacks(stacks []*config.StackConfig) error {
 	log.Printf("INFO: updating %d stacks", len(stacks))
-	for _, err := range hydrateStacks(stacks) {
-		if err != nil {
-			return err
-		}
+
+	errs := hydrateStacks(stacks)
+	if errs != nil {
+		log.Printf("Error: %v", errs)
 	}
 
 	for _, s := range stacks {
 		location := s.Location()
 
-		disk, err := config.LoadStackFromFile(location)
+		disk, err := r.General.LoadStackFromFile(location)
 		if err != nil {
 			return err
 		}
@@ -120,21 +122,24 @@ func (r *FetchStacks) updateStacks(stacks []*config.StackConfig) error {
 
 func (r *FetchStacks) createStacks(stacks []*config.StackConfig) error {
 	log.Printf("INFO: creating %d stacks", len(stacks))
-	for _, err := range hydrateStacks(stacks) {
-		if err != nil {
-			return err
-		}
+	result := &multierror.Error{}
+
+	errs := hydrateStacks(stacks)
+	if errs != nil {
+		log.Printf("Error: %v", errs)
 	}
 
 	for _, s := range stacks {
-		location := s.Location()
+		if !s.Hydrated {
+			continue
+		}
 
-		if err := s.Save(location); err != nil {
-			return err
+		if err := s.Save(s.Location()); err != nil {
+			result = multierror.Append(result, err)
 		}
 	}
 
-	return nil
+	return result.ErrorOrNil()
 }
 
 func (r *FetchStacks) getRegion(region string) ([]*config.StackConfig, error) {
@@ -149,7 +154,7 @@ func (r *FetchStacks) getRegion(region string) ([]*config.StackConfig, error) {
 		context.TODO(),
 		input,
 		func(res *cloudformation.ListStacksOutput, more bool) bool {
-			stacks = append(stacks, convertToLocal(res.StackSummaries)...)
+			stacks = append(stacks, r.convertToLocal(res.StackSummaries)...)
 
 			return more
 		}); err != nil {
@@ -159,9 +164,8 @@ func (r *FetchStacks) getRegion(region string) ([]*config.StackConfig, error) {
 	return stacks, nil
 }
 
-func hydrateStacks(stacks []*config.StackConfig) []error {
-	errs := []error{}
-	// TODO: parallelise
+func hydrateStacks(stacks []*config.StackConfig) error {
+	errs := &multierror.Error{}
 
 	wg := &sync.WaitGroup{}
 	errsCh := make(chan error, len(stacks))
@@ -175,13 +179,10 @@ func hydrateStacks(stacks []*config.StackConfig) []error {
 	close(errsCh)
 
 	for err := range errsCh {
-		errs = append(errs, err)
+		errs = multierror.Append(errs, err)
 	}
 
-	if len(errs) > 0 {
-		return errs
-	}
-	return nil
+	return errs.ErrorOrNil()
 }
 
 func hydrate(ctx context.Context, wg *sync.WaitGroup, errsCh chan<- error, s *config.StackConfig) {
@@ -196,14 +197,11 @@ func hydrate(ctx context.Context, wg *sync.WaitGroup, errsCh chan<- error, s *co
 	})
 }
 
-func convertToLocal(stacks []*cloudformation.StackSummary) []*config.StackConfig {
+func (r *FetchStacks) convertToLocal(stacks []*cloudformation.StackSummary) []*config.StackConfig {
 	res := []*config.StackConfig{}
 
 	for _, s := range stacks {
-		res = append(res, &config.StackConfig{
-			Name: *s.StackName,
-			ARN:  *s.StackId,
-		})
+		res = append(res, r.General.NewStack(*s.StackName, *s.StackId))
 	}
 	return res
 }

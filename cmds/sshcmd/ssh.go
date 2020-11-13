@@ -4,8 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
-	"math/rand"
 	"os"
 	"os/exec"
 	"strings"
@@ -22,6 +20,7 @@ type SSHcmd struct {
 	ServerOffset uint
 	RandomServer bool
 	Pdsh         bool
+	Noop         bool
 }
 
 func (*SSHcmd) Name() string { return "ssh" }
@@ -45,62 +44,67 @@ func (r *SSHcmd) SetFlags(f *flag.FlagSet) {
 	f.BoolVar(&r.RandomServer, "r", false, "Select a server at random")
 	f.UintVar(&r.ServerOffset, "o", 0, "Pick server N")
 	f.BoolVar(&r.Pdsh, "p", false, "Run with PDSH for parallel")
+	f.BoolVar(&r.Noop, "n", false, "Don't actually execute a program")
 }
 
 func (r *SSHcmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
-	filters := []string{}
-	additionalSSHArgs := []string{}
-	args := f.Args()
-	for i, arg := range args {
-		if arg != "--" {
-			continue
+	/*
+		additionalSSHArgs := []string{}
+		args := f.Args()
+		filters := args
+		for i, arg := range args {
+			if arg != "--" {
+				continue
+			}
+
+			filters = args[0:i]
+			if len(args) > i {
+				additionalSSHArgs = args[i+1 : len(args)]
+			}
+
 		}
 
-		filters = args[0:i]
-		if len(args) > i {
-			additionalSSHArgs = args[i+1 : len(args)]
-		}
-
-	}
-
-	stacks, err := r.StacksDB.Filter(filters...)
-	if err != nil {
-		log.Printf("Error: %v", err)
-		return subcommands.ExitFailure
-	}
-
-	allServers := []string{}
-	for _, s := range stacks.All {
-		servers, err := s.FetchServers()
+		stacks, err := r.StacksDB.Filter(filters...)
 		if err != nil {
 			log.Printf("Error: %v", err)
 			return subcommands.ExitFailure
 		}
-		allServers = append(allServers, servers...)
-	}
 
-	log.Printf("Servers: %v", allServers)
-	if len(allServers) == 0 {
-		log.Printf("Can't find server")
-		return subcommands.ExitFailure
-	}
+		allServers := []string{}
+		for _, s := range stacks.All {
+			servers, err := s.FetchServers()
+			if err != nil {
+				log.Printf("Error: %v", err)
+				return subcommands.ExitFailure
+			}
+			allServers = append(allServers, servers...)
+		}
 
-	if r.RandomServer {
-		r.ServerOffset = uint(rand.Uint64())
-	}
-	offset := r.ServerOffset % uint(len(allServers))
+		log.Printf("Servers: %v", allServers)
+		if len(allServers) == 0 {
+			log.Printf("Can't find server")
+			return subcommands.ExitFailure
+		}
 
-	r.General.Debug("Picking server %d", offset)
-	server := allServers[offset]
+		if r.RandomServer {
+			r.ServerOffset = uint(rand.Uint64())
+		}
+		offset := r.ServerOffset % uint(len(allServers))
 
-	if r.Pdsh {
-		err = r.ExecPDSH(allServers, additionalSSHArgs)
-	} else {
-		err = r.ExecSSH(server, additionalSSHArgs)
-	}
+		r.General.Debug("Picking server %d", offset)
+		server := allServers[offset]
 
-	log.Printf("Error: %v", err)
+		if r.Pdsh {
+			err = r.ExecPDSH(allServers, additionalSSHArgs)
+		} else {
+			err = r.ExecSSH(server, additionalSSHArgs)
+		}
 
+		if err != nil {
+			log.Printf("Error: %v", err)
+			return subcommands.ExitFailure
+		}
+	*/
 	return subcommands.ExitSuccess
 }
 
@@ -112,7 +116,12 @@ func (r SSHcmd) Exec(command string, args []string) error {
 
 	sshArgs := []string{bin}
 	sshArgs = append(sshArgs, args...)
-	r.General.Debug("exec %v", strings.Join(sshArgs, " "))
+	r.General.Log.Debug("exec %v", strings.Join(sshArgs, " "))
+
+	if r.Noop {
+		fmt.Printf("exec %v", strings.Join(sshArgs, " "))
+		return nil
+	}
 
 	if err := syscall.Exec(bin, sshArgs, os.Environ()); err != nil {
 		return err

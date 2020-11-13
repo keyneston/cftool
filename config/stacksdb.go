@@ -1,14 +1,17 @@
 package config
 
 import (
-	"log"
 	"regexp"
+
+	"github.com/sirupsen/logrus"
 )
 
 type StacksDB struct {
 	All    []*StackConfig
 	byName map[string]*StackConfig
 	byARN  map[string]*StackConfig
+
+	log logrus.Logger
 }
 
 func (s *StacksDB) AddStack(stacks ...*StackConfig) {
@@ -21,8 +24,12 @@ func (s *StacksDB) AddStack(stacks ...*StackConfig) {
 	}
 
 	for _, stack := range stacks {
-		if _, ok := s.byARN[stack.Name]; ok {
-			log.Printf("Warning: Already added %q skipping", stack.Name)
+		if _, ok := s.byARN[stack.ARN]; ok {
+			s.log.Warning("Already added %q skipping", stack.Name)
+			continue
+		}
+		if _, ok := s.byName[stack.Name]; ok {
+			s.log.Warning("Already added %q skipping", stack.Name)
 			continue
 		}
 
