@@ -31,6 +31,7 @@ func LoadConfig() (*GeneralConfig, error) {
 		Log: logrus.New(),
 	}
 	generalConfig.Source = FindConfig()
+	generalConfig.SetLevel(logrus.ErrorLevel)
 
 	f, err := os.Open(helpers.Expand(generalConfig.Source))
 	if err != nil {
